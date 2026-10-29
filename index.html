@@ -327,8 +327,19 @@
   $("btnFinal").onclick=function(){
     var inc=lotes.filter(function(l){return l.alvo&&l.count<l.alvo});
     if(inc.length){ if(!window.confirm("Ainda faltam bags: "+inc.map(function(l){return "Lote "+l.lote+" ("+l.count+"/"+l.alvo+")"}).join(", ")+".\nFinalizar assim mesmo?"))return; }
-    salvarCarga();stopCam();voltarSetup();statusFlash(null,"Carga salva ✓","");
+    salvarCarga();enviarEmail();stopCam();voltarSetup();statusFlash(null,"Carga salva ✓ — abrindo e-mail","");
   };
+  function enviarEmail(){
+    var tot=lotes.reduce(function(s,l){return s+l.count},0);
+    var totA=lotes.reduce(function(s,l){return s+l.alvo},0);
+    var dt=fmtData(new Date().toISOString());
+    var assunto="Carga "+placa+(ordem?(" - ordem "+ordem):"")+" - "+dt;
+    var corpo="CONFERÊNCIA DE CARREGAMENTO\n\nPlaca: "+placa+"\nOrdem: "+(ordem||"-")+"\nData: "+dt+"\n\nLotes carregados:\n";
+    lotes.forEach(function(l,i){corpo+=(i+1)+"º Lote "+l.lote+": "+l.count+"/"+l.alvo+" bags\n";});
+    corpo+="\nTotal: "+tot+"/"+totA+" bags\n\n— Assistente Batovi I.A";
+    var href="mailto:fazenda@sementesbatovi.com.br?subject="+encodeURIComponent(assunto)+"&body="+encodeURIComponent(corpo);
+    try{window.location.href=href;}catch(e){}
+  }
   function voltarSetup(){$("scan").hidden=true;$("setup").hidden=false;$("histCard").hidden=false;
     $("log").innerHTML="";ultima="";travado=false;$("overlay").hidden=true;renderHist();}
 
