@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Conferente de Lote — Batovi</title>
+<style>
+  :root{
+    --bg:#f4f5f3; --surface:#ffffff; --line:#d9dcd6; --fg:#1b1e1a; --muted:#5f655c;
+    --accent:#b8860b; --ok:#1f8a4c; --ok-bg:#e6f4ea; --err:#c62828; --err-bg:#fbe7e7; --warn:#c77d12;
+    --shadow:0 1px 3px rgba(20,25,18,.08),0 6px 20px rgba(20,25,18,.06);
+    color-scheme:light;
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --bg:#15171a; --surface:#1f2226; --line:#343a40; --fg:#eef1ee; --muted:#9aa29a;
+    --accent:#e0a526; --ok:#49c47d; --ok-bg:#13291d; --err:#ff6b6b; --err-bg:#2c1414; --warn:#e0a526;
+    --shadow:0 1px 3px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.3);
+    color-scheme:dark;
+  }}
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%}
+  body{background:var(--bg);color:var(--fg);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:16px;line-height:1.4;
+    padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}
+  .wrap{max-width:720px;margin:0 auto;display:flex;flex-direction:column;gap:14px;
+    padding-left:max(14px,env(safe-area-inset-left,0px));
+    padding-right:max(14px,env(safe-area-inset-right,0px));padding-block:14px 24px}
+  h1{font-size:1.2rem;margin:0;text-wrap:balance}
+  .tag{font-size:.66rem;letter-spacing:.09em;text-transform:uppercase;color:var(--accent);font-weight:700}
+  .sub{color:var(--muted);font-size:.8rem;margin-top:2px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:15px}
+  label{display:block;font-size:.78rem;color:var(--muted);margin-bottom:6px;font-weight:700}
+  input[type=text]{width:100%;font-size:1.2rem;padding:11px 13px;border:2px solid var(--line);
+    border-radius:10px;background:var(--bg);color:var(--fg);font-family:ui-monospace,"Courier New",monospace;letter-spacing:.5px}
+  input:focus{outline:none;border-color:var(--accent)}
+  button{font:inherit;font-weight:700;cursor:pointer;border:1px solid var(--line);background:var(--surface);
+    color:var(--fg);border-radius:10px;padding:12px 15px}
+  .primary{background:var(--accent);border-color:var(--accent);color:#1b1500;font-size:1.08rem;padding:15px}
+  .ghost{background:transparent}
+  .row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1;min-width:0}
+  .hint{font-size:.77rem;color:var(--muted);margin-top:8px;line-height:1.45}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  .chip{display:inline-flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--line);
+    border-radius:999px;padding:7px 12px;font-weight:700;font-family:ui-monospace,monospace}
+  .chip .x{cursor:pointer;color:var(--err);font-weight:700}
+  .chip .n{background:var(--muted);color:#fff;border-radius:999px;padding:1px 9px;font-size:.85rem}
+  .chip.has .n{background:var(--accent);color:#1b1500}
+  .chip.done .n{background:var(--ok);color:#fff}
+  .chip.over{border-color:var(--err)} .chip.over .n{background:var(--err);color:#fff}
+  .chip.cur{border-color:var(--accent);border-width:2px;box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent)}
+  .chip .seq{background:var(--fg);color:var(--bg);border-radius:6px;padding:1px 7px;font-size:.78rem}
+  [hidden]{display:none!important}
+  .cam{position:relative;width:100%;aspect-ratio:1/1;max-height:60vh;background:#000;border-radius:14px;overflow:hidden}
+  .cam video{width:100%;height:100%;object-fit:cover}
+  .frame{position:absolute;inset:16%;border:3px solid rgba(255,255,255,.9);border-radius:16px;box-shadow:0 0 0 2000px rgba(0,0,0,.25)}
+  .camoff{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;color:#fff;padding:20px;font-size:.95rem}
+  .status{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
+    border-radius:14px;border:2px solid var(--line);background:var(--surface);padding:14px;transition:.12s}
+  .status.ok{background:var(--ok-bg);border-color:var(--ok)} .status.err{background:var(--err-bg);border-color:var(--err)}
+  .status .big{font-size:1.45rem;font-weight:800} .status.ok .big{color:var(--ok)} .status.err .big{color:var(--err)}
+  .status .code{font-family:ui-monospace,monospace;color:var(--muted);font-size:.85rem;margin-top:4px;word-break:break-all}
+  .tot{font-family:ui-monospace,monospace;font-variant-numeric:tabular-nums;font-weight:700}
+  .overlay{position:fixed;inset:0;z-index:30;background:var(--err);color:#fff;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;text-align:center;gap:16px;padding:24px}
+  .overlay h2{font-size:2.3rem;margin:0;letter-spacing:1px}
+  .overlay .d{font-size:1.1rem;max-width:34ch}.overlay .d b{display:block;font-size:1.4rem;margin-top:6px;font-family:ui-monospace,monospace}
+  .overlay button{background:#fff;color:var(--err);border:none;font-size:1.25rem;padding:15px 28px}
+  .siren{width:76px;height:76px;border-radius:50%;background:rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;font-size:2.6rem;animation:p 1s infinite}
+  @keyframes p{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+  @media (prefers-reduced-motion:reduce){.siren{animation:none}}
+  .log{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px;max-height:150px;overflow:auto}
+  .log li{display:flex;gap:9px;align-items:center;font-size:.86rem;padding:7px 9px;border-radius:8px;background:var(--bg);border:1px solid var(--line)}
+  .log .m{width:20px;height:20px;border-radius:6px;flex:none;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:.8rem}
+  .log .m.ok{background:var(--ok)} .log .m.err{background:var(--err)}
+  .log .c{flex:1;min-width:0;font-family:ui-monospace,monospace;word-break:break-all}
+  .log .t{color:var(--muted);font-size:.75rem;flex:none}
+  .hist li{display:block;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);margin-bottom:8px;font-size:.9rem}
+  .hist .pl{font-weight:800;font-family:ui-monospace,monospace;font-size:1.05rem}
+  .hist .ord{color:var(--accent);font-weight:700}
+  .hist .meta{color:var(--muted);font-size:.78rem}
+  .headrow{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+  .foot{font-size:.72rem;color:var(--muted);text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="headrow">
+    <div><span class="tag">Sementes Batovi</span><h1>Conferente de Lote</h1>
+      <div class="sub">Lê o QR de cada bag e trava se não for um dos lotes da placa.</div></div>
+  </div>
+
+  <!-- SETUP -->
+  <div class="card" id="setup">
+    <div class="row">
+      <div style="flex:1"><label for="ordem">Nº da ordem de carregamento</label>
+        <input type="text" id="ordem" inputmode="numeric" placeholder="ex: 3443" autocomplete="off"></div>
+      <div style="flex:1"><label for="placa">Placa do caminhão</label>
+        <input type="text" id="placa" placeholder="ex: ABC-1D23" autocomplete="off"></div>
+    </div>
+    <div style="height:14px"></div>
+    <label>Sequência de carregamento (lote + qtd de bags, na ordem)</label>
+    <div class="row">
+      <input type="text" id="loteAdd" inputmode="numeric" placeholder="Lote" autocomplete="off" style="flex:1.4">
+      <input type="text" id="qtdAdd" inputmode="numeric" placeholder="Qtd bags" autocomplete="off" style="flex:1">
+      <button id="btnAddLote" style="flex:1">Adicionar</button>
+    </div>
+    <div class="chips" id="lotesChips"></div>
+    <div class="hint">Adicione na ordem do carregamento (ex: 1º Lote 756502, 30 bags → 2º Lote 756503, 25 bags). Até <b>8 lotes</b>. Toque no lote pra remover.</div>
+    <div style="height:16px"></div>
+    <button class="primary" id="btnStart" style="width:100%">Começar conferência</button>
+    <div class="hint">Vai pedir a <b>câmera</b> — toque em <b>Permitir</b>. Também funciona com pistola/leitor ou digitando.</div>
+  </div>
+
+  <!-- SCAN -->
+  <div id="scan" hidden style="display:flex;flex-direction:column;gap:12px">
+    <div class="cam" id="camBox">
+      <video id="video" playsinline muted></video>
+      <div class="frame"></div>
+      <div class="camoff" id="camoff" hidden></div>
+    </div>
+    <div class="status" id="statusBox">
+      <div class="big" id="statusMsg">Aponte no QR do bag</div>
+      <div class="code" id="statusCode"></div>
+    </div>
+    <div class="card" style="padding:12px 14px">
+      <div class="headrow">
+        <label style="margin:0">Ordem <span class="tot" id="ordemShow"></span> · Placa <span class="tot" id="placaShow"></span></label>
+        <span class="meta tot" id="totShow" style="color:var(--muted);font-size:.8rem"></span></div>
+      <div class="chips" id="contChips"></div>
+    </div>
+    <div class="card" style="padding:12px 14px">
+      <label for="manual">Leitor/pistola ou digitar (Enter)</label>
+      <input type="text" id="manual" autocomplete="off" placeholder="código do bag…">
+    </div>
+    <div class="row">
+      <button class="primary" id="btnFinal">Finalizar carga desta placa</button>
+      <button class="ghost" id="btnCancel" style="flex:.6">Cancelar</button>
+    </div>
+    <ul class="log" id="log"></ul>
+  </div>
+
+  <!-- HISTORICO -->
+  <div class="card" id="histCard">
+    <div class="headrow" style="margin-bottom:8px">
+      <label style="margin:0">Cargas salvas</label>
+      <div class="row" style="flex:none;gap:6px">
+        <button class="ghost" id="btnExport" style="padding:7px 10px;font-size:.82rem">Exportar</button>
+        <button class="ghost" id="btnLimpar" style="padding:7px 10px;font-size:.82rem">Limpar</button>
+      </div>
+    </div>
+    <input type="text" id="busca" placeholder="Pesquisar por nº da ordem ou placa…" autocomplete="off" style="font-size:1rem;margin-bottom:10px">
+    <ul class="hist" id="hist" style="list-style:none;margin:0;padding:0"></ul>
+    <div class="hint" id="histVazio">Nenhuma carga salva ainda. As cargas finalizadas aparecem aqui, guardadas neste celular.</div>
+  </div>
+
+  <div class="foot">Assistente Batovi I.A — conferência de carregamento</div>
+</div>
+
+<div class="overlay" id="overlay" hidden>
+  <div class="siren">🚨</div>
+  <h2>LOTE ERRADO</h2>
+  <div class="d">Esse bag não é de nenhum lote desta placa.<b id="ovDetail"></b></div>
+  <button id="ovBtn">ENTENDI — CONTINUAR</button>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var $=function(id){return document.getElementById(id)};
+  var HKEY="batovi_cargas_v2";
+
+  var lotes=[];            // [{lote, alvo, count}]
+  var ordem="", placa="";
+  var ultima="", ultimaT=0, travado=false;
+  var stream=null, detector=null, scanning=false;
+
+  function soAlnum(s){return (s||"").toUpperCase().replace(/[^A-Z0-9]/g,"")}
+  function numToks(s){return (s||"").match(/\d+/g)||[]}
+  function achaLote(lido){
+    var L=soAlnum(lido);
+    for(var i=0;i<lotes.length;i++){
+      var E=soAlnum(lotes[i].lote);
+      if(E && L===E) return lotes[i];
+      if(/^\d+$/.test(E)){ var t=numToks(lido); for(var j=0;j<t.length;j++){ if(t[j]===E) return lotes[i]; } }
+    }
+    return null;
+  }
+
+  var ac=null;
+  function beep(f,d,v,ty){try{if(!ac)ac=new(window.AudioContext||window.webkitAudioContext)();if(ac.state==="suspended")ac.resume();
+    var o=ac.createOscillator(),g=ac.createGain();o.type=ty||"sine";o.frequency.value=f;g.gain.value=v||.08;
+    o.connect(g);g.connect(ac.destination);var t=ac.currentTime;o.start(t);o.stop(t+d);}catch(e){}}
+  function somOK(){beep(880,.12,.08,"sine")}
+  function somDone(){beep(990,.15,.09,"sine")}
+  function somErro(){beep(220,.25,.14,"square");setTimeout(function(){beep(180,.35,.14,"square")},180);setTimeout(function(){beep(180,.35,.14,"square")},520)}
+  function vibra(p){try{if(navigator.vibrate)navigator.vibrate(p)}catch(e){}}
+
+  // ---------- setup: lotes ----------
+  function addLote(lt,qt){
+    lt=(lt||"").trim(); if(!lt) return;
+    var alvo=parseInt((qt||"").replace(/\D/g,""),10)||0;
+    var ex=lotes.filter(function(l){return soAlnum(l.lote)===soAlnum(lt)})[0];
+    if(ex){ ex.alvo=alvo; }
+    else { if(lotes.length>=8){alert("A ordem pode ter no máximo 8 lotes.");return;} lotes.push({lote:lt,alvo:alvo,count:0}); }
+    renderChips();
+  }
+  function renderChips(){
+    var c=$("lotesChips"); c.innerHTML="";
+    lotes.forEach(function(l,i){
+      var s=document.createElement("span"); s.className="chip has";
+      s.innerHTML="<span class='seq'>"+(i+1)+"º</span> Lote "+l.lote+" <span class='n'>"+(l.alvo?l.alvo+" bags":"s/ qtd")+"</span> <span class='x'>✕</span>";
+      s.querySelector(".x").onclick=function(){lotes.splice(i,1);renderChips()};
+      c.appendChild(s);
+    });
+  }
+  $("btnAddLote").onclick=function(){addLote($("loteAdd").value,$("qtdAdd").value);$("loteAdd").value="";$("qtdAdd").value="";$("loteAdd").focus()};
+  $("loteAdd").addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();$("qtdAdd").focus()}});
+  $("qtdAdd").addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();$("btnAddLote").click()}});
+
+  // ---------- scan: contagem ----------
+  function loteDone(l){ return l.alvo && l.count>=l.alvo; }
+  function renderCont(){
+    var c=$("contChips"); c.innerHTML=""; var tot=0,alvoTot=0;
+    // "da vez" = primeiro lote da sequencia ainda nao completo
+    var curIdx=-1; for(var k=0;k<lotes.length;k++){ if(!loteDone(lotes[k])){curIdx=k;break;} }
+    lotes.forEach(function(l,i){
+      tot+=l.count; alvoTot+=l.alvo;
+      var s=document.createElement("span");
+      var cls="chip"; if(loteDone(l))cls+=" done"; else if(l.count)cls+=" has";
+      if(l.alvo&&l.count>l.alvo)cls+=" over"; if(i===curIdx)cls+=" cur"; s.className=cls;
+      var badge=l.alvo?(l.count+"/"+l.alvo):(""+l.count);
+      s.innerHTML="<span class='seq'>"+(i+1)+"º</span> Lote "+l.lote+" <span class='n'>"+badge+"</span>";
+      c.appendChild(s);
+    });
+    $("totShow").textContent = alvoTot ? (tot+"/"+alvoTot+" bags") : (tot+" bag(s)");
+  }
+  function statusFlash(cls,msg,code){var b=$("statusBox");b.classList.remove("ok","err");if(cls)b.classList.add(cls);
+    $("statusMsg").textContent=msg;$("statusCode").textContent=code||"";}
+  function addLog(cls,txt){var ul=$("log"),li=document.createElement("li");
+    var m=document.createElement("span");m.className="m "+cls;m.textContent=cls==="ok"?"✓":"✗";
+    var c=document.createElement("span");c.className="c";c.textContent=txt;
+    var t=document.createElement("span");t.className="t";var d=new Date();
+    t.textContent=(""+d.getHours()).padStart(2,"0")+":"+(""+d.getMinutes()).padStart(2,"0");
+    li.appendChild(m);li.appendChild(c);li.appendChild(t);ul.insertBefore(li,ul.firstChild);
+    while(ul.children.length>50)ul.removeChild(ul.lastChild);}
+
+  function processa(raw){
+    var lido=(raw||"").trim(); if(!lido||travado) return;
+    var now=Date.now(); if(lido===ultima&&(now-ultimaT)<900){ultimaT=now;return} ultima=lido;ultimaT=now;
+    var m=achaLote(lido);
+    if(m){
+      m.count++; renderCont();
+      if(m.alvo&&m.count>m.alvo){ statusFlash("err","LOTE 15 PASSOU DO TOTAL".replace("15",m.lote),lido); somErro(); vibra([100,60,100]); addLog("err","Lote "+m.lote+" passou de "+m.alvo+"  ·  "+lido); travar(lido,"Lote "+m.lote+" já estava completo ("+m.alvo+").\nLido a mais: "+lido); return; }
+      if(m.alvo&&m.count===m.alvo){ statusFlash("ok","LOTE "+m.lote+" COMPLETO ✓ ("+m.count+"/"+m.alvo+")",lido); somDone(); vibra(90); addLog("ok","Lote "+m.lote+" COMPLETO "+m.count+"/"+m.alvo); }
+      else { statusFlash("ok","BAG OK ✓  (Lote "+m.lote+(m.alvo?"  "+m.count+"/"+m.alvo:"")+")",lido); somOK(); vibra(60); addLog("ok","Lote "+m.lote+(m.alvo?"  "+m.count+"/"+m.alvo:"")+"  ·  "+lido); }
+    } else {
+      statusFlash("err","LOTE ERRADO ✗",lido); somErro(); vibra([120,80,120,80,200]); addLog("err",lido);
+      travar(lido,"Esperado um de: "+lotes.map(function(l){return l.lote}).join(", ")+"   •   Lido: "+lido);
+    }
+  }
+  function travar(lido,detalhe){ travado=true; $("ovDetail").textContent=detalhe; $("overlay").hidden=false; }
+  $("ovBtn").onclick=function(){$("overlay").hidden=true;travado=false;statusFlash(null,"Aponte no próximo bag","");focoManual()};
+
+  // ---------- camera ----------
+  function startCam(){
+    var off=$("camoff");
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){off.hidden=false;off.textContent="Este navegador não libera a câmera aqui. Use a pistola/leitor ou digite o código abaixo.";return;}
+    navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}}}).then(function(s){
+      stream=s;var v=$("video");v.srcObject=s;v.play();
+      if("BarcodeDetector" in window){try{detector=new window.BarcodeDetector({formats:["qr_code"]})}catch(e){detector=null}}
+      if(detector){scanning=true;loopDetect();}
+      else{off.hidden=false;off.textContent="A câmera abriu, mas este navegador não lê QR sozinho. Use a pistola/leitor ou digite o código. (No Android, o Chrome atualizado lê.)";}
+    }).catch(function(err){off.hidden=false;off.textContent="Não consegui abrir a câmera ("+(err&&err.name||"erro")+"). Toque em Permitir quando pedir, ou use a pistola/leitor / digite.";});
+  }
+  function loopDetect(){ if(!scanning)return; var v=$("video");
+    if(detector&&v.readyState>=2){detector.detect(v).then(function(c){if(c&&c.length)processa(c[0].rawValue)}).catch(function(){});}
+    setTimeout(function(){requestAnimationFrame(loopDetect)},220); }
+  function stopCam(){scanning=false;if(stream){stream.getTracks().forEach(function(t){t.stop()});stream=null}}
+
+  // ---------- manual ----------
+  function focoManual(){var e=$("manual");if(e&&!travado){try{e.focus()}catch(x){}}}
+  (function(){var si=$("manual"),tmr=null;
+    si.addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();var v=si.value;si.value="";processa(v)}});
+    si.addEventListener("input",function(){if(tmr)clearTimeout(tmr);tmr=setTimeout(function(){if(si.value.trim()){var v=si.value;si.value="";processa(v)}},220)});
+  })();
+
+  // ---------- fluxo ----------
+  $("btnStart").onclick=function(){
+    ordem=($("ordem").value||"").trim(); placa=($("placa").value||"").trim();
+    if($("loteAdd").value.trim())addLote($("loteAdd").value,$("qtdAdd").value);
+    $("loteAdd").value="";$("qtdAdd").value="";
+    if(!placa){alert("Informe a placa do caminhão.");return}
+    if(!lotes.length){alert("Adicione pelo menos um lote da ordem.");return}
+    lotes.forEach(function(l){l.count=0});
+    $("ordemShow").textContent=ordem||"—"; $("placaShow").textContent=placa;
+    $("setup").hidden=true;$("histCard").hidden=true;$("scan").hidden=false;
+    renderCont();beep(660,.08,.05,"sine");startCam();focoManual();statusFlash(null,"Aponte no QR do bag","");
+  };
+  $("btnCancel").onclick=function(){if(!window.confirm("Cancelar sem salvar esta carga?"))return;stopCam();voltarSetup();};
+  $("btnFinal").onclick=function(){
+    var inc=lotes.filter(function(l){return l.alvo&&l.count<l.alvo});
+    if(inc.length){ if(!window.confirm("Ainda faltam bags: "+inc.map(function(l){return "Lote "+l.lote+" ("+l.count+"/"+l.alvo+")"}).join(", ")+".\nFinalizar assim mesmo?"))return; }
+    salvarCarga();stopCam();voltarSetup();statusFlash(null,"Carga salva ✓","");
+  };
+  function voltarSetup(){$("scan").hidden=true;$("setup").hidden=false;$("histCard").hidden=false;
+    $("log").innerHTML="";ultima="";travado=false;$("overlay").hidden=true;renderHist();}
+
+  // ---------- historico ----------
+  function lerHist(){try{return JSON.parse(localStorage.getItem(HKEY)||"[]")}catch(e){return []}}
+  function gravarHist(a){try{localStorage.setItem(HKEY,JSON.stringify(a))}catch(e){}}
+  function salvarCarga(){var a=lerHist();
+    a.unshift({ordem:ordem,placa:placa,quando:new Date().toISOString(),
+      lotes:lotes.map(function(l){return {lote:l.lote,alvo:l.alvo,count:l.count}}),
+      total:lotes.reduce(function(s,l){return s+l.count},0),
+      alvoTotal:lotes.reduce(function(s,l){return s+l.alvo},0)});
+    gravarHist(a);}
+  function fmtData(iso){var d=new Date(iso),p=function(n){return(""+n).padStart(2,"0")};
+    return p(d.getDate())+"/"+p(d.getMonth()+1)+"/"+d.getFullYear()+" "+p(d.getHours())+":"+p(d.getMinutes());}
+  function renderHist(){
+    var a=lerHist(),q=soAlnum($("busca").value);
+    if(q)a=a.filter(function(c){return soAlnum(c.ordem).indexOf(q)>=0||soAlnum(c.placa).indexOf(q)>=0});
+    var ul=$("hist");ul.innerHTML="";
+    $("histVazio").hidden=a.length>0;
+    if(!a.length&&q){$("histVazio").hidden=false;$("histVazio").textContent="Nada encontrado para \""+$("busca").value+"\".";}
+    else $("histVazio").textContent="Nenhuma carga salva ainda. As cargas finalizadas aparecem aqui, guardadas neste celular.";
+    a.forEach(function(c){
+      var li=document.createElement("li");
+      var lts=c.lotes.map(function(l,i){return (i+1)+"º Lote "+l.lote+": "+l.count+(l.alvo?"/"+l.alvo:"")}).join("  •  ");
+      li.innerHTML="<span class='ord'>Ordem "+(c.ordem||"—")+"</span> · <span class='pl'>"+c.placa+"</span> — <b>"+c.total+(c.alvoTotal?"/"+c.alvoTotal:"")+" bag(s)</b><br>"+
+        "<span class='meta'>"+fmtData(c.quando)+"</span><br>"+lts;
+      ul.appendChild(li);
+    });
+  }
+  $("busca").addEventListener("input",renderHist);
+  $("btnLimpar").onclick=function(){if(window.confirm("Apagar TODAS as cargas salvas deste celular?")){gravarHist([]);renderHist()}};
+  $("btnExport").onclick=function(){
+    var a=lerHist();if(!a.length){alert("Não há cargas pra exportar.");return}
+    var linhas=["Ordem;Placa;Data;Seq;Lote;Bags;QtdPrevista;TotalCarga"];
+    a.forEach(function(c){c.lotes.forEach(function(l,i){linhas.push([c.ordem,c.placa,fmtData(c.quando),(i+1)+"º",l.lote,l.count,l.alvo||"",c.total].join(";"))})});
+    var blob=new Blob(["﻿"+linhas.join("\n")],{type:"text/csv;charset=utf-8"});
+    var url=URL.createObjectURL(blob),a2=document.createElement("a");
+    a2.href=url;a2.download="cargas_batovi.csv";document.body.appendChild(a2);a2.click();
+    setTimeout(function(){URL.revokeObjectURL(url);a2.remove()},500);
+  };
+
+  renderHist();
+  try{$("ordem").focus()}catch(e){}
+})();
+</script>
+</body>
+</html>
