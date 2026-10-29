@@ -355,7 +355,7 @@
     var listaHtml=lotes.map(function(l,i){return (i+1)+"º Lote "+l.lote+": "+l.count+"/"+l.alvo+" bags";}).join("<br>");
     var listaTxt=lotes.map(function(l,i){return (i+1)+"º Lote "+l.lote+": "+l.count+"/"+l.alvo+" bags";}).join("\n");
     var params={placa:placa,cliente:(cliente||"-"),ordem:(ordem||"-"),data:dt,lista:listaHtml,total:(tot+"/"+totA+" bags")};
-    var assunto="Carga "+placa+(cliente?(" - "+cliente):"")+(ordem?(" - ordem "+ordem):"")+" - "+dt;
+    var assunto=("Carga "+placa+(cliente?(" - "+cliente):"")+(ordem?(" - ordem "+ordem):"")+" - "+dt).toUpperCase();
     var corpo="CONFERÊNCIA DE CARREGAMENTO\n\nCliente: "+(cliente||"-")+"\nPlaca: "+placa+"\nOrdem: "+(ordem||"-")+"\nData: "+dt+"\n\nLotes carregados:\n"+listaTxt+"\n\nTotal: "+tot+"/"+totA+" bags\n\n— Assistente Batovi I.A";
     function mailto(){var cc=encodeURIComponent("comercial01@sementesbatovi.com.br,comercial02@sementesbatovi.com.br");
       try{window.location.href="mailto:fazenda@sementesbatovi.com.br?cc="+cc+"&subject="+encodeURIComponent(assunto)+"&body="+encodeURIComponent(corpo);}catch(e){}}
