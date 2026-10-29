@@ -108,6 +108,9 @@
     <label for="cliente">Cliente</label>
     <input type="text" id="cliente" placeholder="ex: SINOVA INOVACOES AGRICOLAS S.A" autocomplete="off">
     <div style="height:14px"></div>
+    <label for="responsavel">Responsável pelo carregamento</label>
+    <input type="text" id="responsavel" placeholder="ex: SEU NOME" autocomplete="off">
+    <div style="height:14px"></div>
     <label>Sequência de carregamento (lote + qtd de bags, na ordem)</label>
     <div class="row">
       <input type="text" id="loteAdd" inputmode="numeric" placeholder="Lote" autocomplete="off" style="flex:1.4">
@@ -190,7 +193,7 @@
     if(ok!==null)toastTmr=setTimeout(function(){t.classList.remove("show");setTimeout(function(){t.hidden=true},250)},3500);}
 
   var lotes=[];            // [{lote, alvo, count}]
-  var ordem="", placa="", cliente="";
+  var ordem="", placa="", cliente="", responsavel="";
   var ultima="", ultimaT=0, travado=false;
   var stream=null, detector=null, scanning=false;
 
@@ -330,6 +333,8 @@
   // ---------- fluxo ----------
   $("btnStart").onclick=function(){
     ordem=($("ordem").value||"").trim().toUpperCase(); placa=($("placa").value||"").trim().toUpperCase(); cliente=($("cliente").value||"").trim().toUpperCase();
+    responsavel=($("responsavel").value||"").trim().toUpperCase();
+    try{localStorage.setItem("batovi_resp",responsavel);}catch(e){}
     if($("loteAdd").value.trim())addLote($("loteAdd").value,$("qtdAdd").value);
     $("loteAdd").value="";$("qtdAdd").value="";
     if(!placa){alert("Informe a placa do caminhão.");return}
@@ -337,7 +342,8 @@
     var semQtd=lotes.filter(function(l){return !l.alvo});
     if(semQtd.length){alert("Informe a quantidade de bags de cada lote (a sequência precisa disso): "+semQtd.map(function(l){return "Lote "+l.lote}).join(", "));return}
     lotes.forEach(function(l){l.count=0});
-    $("ordemShow").textContent=ordem||"—"; $("placaShow").textContent=placa; $("clienteShow").textContent=cliente?("Cliente: "+cliente):"";
+    $("ordemShow").textContent=ordem||"—"; $("placaShow").textContent=placa;
+    $("clienteShow").textContent=(cliente?("Cliente: "+cliente):"")+(responsavel?((cliente?"  ·  ":"")+"Resp: "+responsavel):"");
     $("setup").hidden=true;$("histCard").hidden=true;$("scan").hidden=false;
     renderCont();beep(660,.08,.05,"sine");startCam();focoManual();statusFlash(null,"Aponte no QR do bag","");
   };
@@ -354,9 +360,9 @@
     var dt=_p(_n.getDate())+"-"+_p(_n.getMonth()+1)+"-"+_n.getFullYear()+" "+_p(_n.getHours())+":"+_p(_n.getMinutes());
     var listaHtml=lotes.map(function(l,i){return (i+1)+"º Lote "+l.lote+": "+l.count+"/"+l.alvo+" bags";}).join("<br>");
     var listaTxt=lotes.map(function(l,i){return (i+1)+"º Lote "+l.lote+": "+l.count+"/"+l.alvo+" bags";}).join("\n");
-    var params={placa:placa,cliente:(cliente||"-"),ordem:(ordem||"-"),data:dt,lista:listaHtml,total:(tot+"/"+totA+" bags")};
+    var params={placa:placa,cliente:(cliente||"-"),responsavel:(responsavel||"-"),ordem:(ordem||"-"),data:dt,lista:listaHtml,total:(tot+"/"+totA+" bags")};
     var assunto=("Carga "+placa+(cliente?(" - "+cliente):"")+(ordem?(" - ordem "+ordem):"")+" - "+dt).toUpperCase();
-    var corpo="CONFERÊNCIA DE CARREGAMENTO\n\nCliente: "+(cliente||"-")+"\nPlaca: "+placa+"\nOrdem: "+(ordem||"-")+"\nData: "+dt+"\n\nLotes carregados:\n"+listaTxt+"\n\nTotal: "+tot+"/"+totA+" bags\n\n— Assistente Batovi I.A";
+    var corpo="CONFERÊNCIA DE CARREGAMENTO\n\nCliente: "+(cliente||"-")+"\nPlaca: "+placa+"\nOrdem: "+(ordem||"-")+"\nData: "+dt+"\n\nLotes carregados:\n"+listaTxt+"\n\nTotal: "+tot+"/"+totA+" bags\n\nResponsável pelo carregamento: "+(responsavel||"-")+"\n\n— Assistente Batovi I.A";
     function mailto(){var cc=encodeURIComponent("comercial01@sementesbatovi.com.br,comercial02@sementesbatovi.com.br");
       try{window.location.href="mailto:fazenda@sementesbatovi.com.br?cc="+cc+"&subject="+encodeURIComponent(assunto)+"&body="+encodeURIComponent(corpo);}catch(e){}}
     if(window.emailjs){
@@ -373,7 +379,7 @@
   function lerHist(){try{return JSON.parse(localStorage.getItem(HKEY)||"[]")}catch(e){return []}}
   function gravarHist(a){try{localStorage.setItem(HKEY,JSON.stringify(a))}catch(e){}}
   function salvarCarga(){var a=lerHist();
-    a.unshift({ordem:ordem,placa:placa,cliente:cliente,quando:new Date().toISOString(),
+    a.unshift({ordem:ordem,placa:placa,cliente:cliente,responsavel:responsavel,quando:new Date().toISOString(),
       lotes:lotes.map(function(l){return {lote:l.lote,alvo:l.alvo,count:l.count}}),
       total:lotes.reduce(function(s,l){return s+l.count},0),
       alvoTotal:lotes.reduce(function(s,l){return s+l.alvo},0)});
@@ -382,7 +388,7 @@
     return p(d.getDate())+"/"+p(d.getMonth()+1)+"/"+d.getFullYear()+" "+p(d.getHours())+":"+p(d.getMinutes());}
   function renderHist(){
     var a=lerHist(),q=soAlnum($("busca").value);
-    if(q)a=a.filter(function(c){return soAlnum(c.ordem).indexOf(q)>=0||soAlnum(c.placa).indexOf(q)>=0||soAlnum(c.cliente||"").indexOf(q)>=0||c.lotes.some(function(l){return soAlnum(l.lote).indexOf(q)>=0})});
+    if(q)a=a.filter(function(c){return soAlnum(c.ordem).indexOf(q)>=0||soAlnum(c.placa).indexOf(q)>=0||soAlnum(c.cliente||"").indexOf(q)>=0||soAlnum(c.responsavel||"").indexOf(q)>=0||c.lotes.some(function(l){return soAlnum(l.lote).indexOf(q)>=0})});
     var ul=$("hist");ul.innerHTML="";
     $("histVazio").hidden=a.length>0;
     if(!a.length&&q){$("histVazio").hidden=false;$("histVazio").textContent="Nada encontrado para \""+$("busca").value+"\".";}
@@ -392,6 +398,7 @@
       var lts=c.lotes.map(function(l,i){return (i+1)+"º Lote "+l.lote+": "+l.count+(l.alvo?"/"+l.alvo:"")}).join("  •  ");
       li.innerHTML="<span class='ord'>Ordem "+(c.ordem||"—")+"</span> · <span class='pl'>"+c.placa+"</span> — <b>"+c.total+(c.alvoTotal?"/"+c.alvoTotal:"")+" bag(s)</b><br>"+
         (c.cliente?("<span class='meta'>Cliente: "+c.cliente+"</span><br>"):"")+
+        (c.responsavel?("<span class='meta'>Resp: "+c.responsavel+"</span><br>"):"")+
         "<span class='meta'>"+fmtData(c.quando)+"</span><br>"+lts;
       ul.appendChild(li);
     });
@@ -400,8 +407,8 @@
   $("btnLimpar").onclick=function(){if(window.confirm("Apagar TODAS as cargas salvas deste celular?")){gravarHist([]);renderHist()}};
   $("btnExport").onclick=function(){
     var a=lerHist();if(!a.length){alert("Não há cargas pra exportar.");return}
-    var linhas=["Cliente;Ordem;Placa;Data;Seq;Lote;Bags;QtdPrevista;TotalCarga"];
-    a.forEach(function(c){c.lotes.forEach(function(l,i){linhas.push([(c.cliente||""),c.ordem,c.placa,fmtData(c.quando),(i+1)+"º",l.lote,l.count,l.alvo||"",c.total].join(";"))})});
+    var linhas=["Cliente;Responsavel;Ordem;Placa;Data;Seq;Lote;Bags;QtdPrevista;TotalCarga"];
+    a.forEach(function(c){c.lotes.forEach(function(l,i){linhas.push([(c.cliente||""),(c.responsavel||""),c.ordem,c.placa,fmtData(c.quando),(i+1)+"º",l.lote,l.count,l.alvo||"",c.total].join(";"))})});
     var blob=new Blob(["﻿"+linhas.join("\n")],{type:"text/csv;charset=utf-8"});
     var url=URL.createObjectURL(blob),a2=document.createElement("a");
     a2.href=url;a2.download="cargas_batovi.csv";document.body.appendChild(a2);a2.click();
@@ -409,6 +416,7 @@
   };
 
   renderHist();
+  try{var _r=localStorage.getItem("batovi_resp");if(_r)$("responsavel").value=_r;}catch(e){}
   try{$("ordem").focus()}catch(e){}
 })();
 </script>
