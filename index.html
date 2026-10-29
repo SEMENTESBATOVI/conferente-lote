@@ -82,6 +82,10 @@
   .hist .meta{color:var(--muted);font-size:.78rem}
   .headrow{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
   .foot{font-size:.72rem;color:var(--muted);text-align:center}
+  .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:40;max-width:90vw;background:var(--fg);color:var(--bg);padding:12px 18px;border-radius:999px;font-weight:700;box-shadow:var(--shadow);opacity:0;transition:opacity .2s}
+  .toast.show{opacity:1}
+  .toast.ok{background:var(--ok);color:#fff}
+  .toast.err{background:var(--err);color:#fff}
 </style>
 </head>
 <body>
@@ -158,6 +162,8 @@
   <div class="foot">Assistente Batovi I.A — conferência de carregamento</div>
 </div>
 
+<div class="toast" id="toast" hidden></div>
+
 <div class="overlay" id="overlay" hidden>
   <div class="siren">🚨</div>
   <h2 id="ovTitle">LOTE ERRADO</h2>
@@ -165,11 +171,19 @@
   <button id="ovBtn">ENTENDI — CONTINUAR</button>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4.4.1/dist/email.min.js"></script>
 <script>
 (function(){
   "use strict";
   var $=function(id){return document.getElementById(id)};
   var HKEY="batovi_cargas_v2";
+  var EMAIL={servico:"service_9h9su6f",template:"template_66h4smp",chave:"BotqXGWBRW2YP7yFt"};
+  try{if(window.emailjs)emailjs.init({publicKey:EMAIL.chave});}catch(e){}
+  var toastTmr=null;
+  function toast(msg,ok){var t=$("toast");if(!t)return;t.textContent=msg;t.className="toast"+(ok===true?" ok":ok===false?" err":"");t.hidden=false;
+    requestAnimationFrame(function(){t.classList.add("show")});
+    if(toastTmr)clearTimeout(toastTmr);
+    if(ok!==null)toastTmr=setTimeout(function(){t.classList.remove("show");setTimeout(function(){t.hidden=true},250)},3500);}
 
   var lotes=[];            // [{lote, alvo, count}]
   var ordem="", placa="";
@@ -333,13 +347,19 @@
     var tot=lotes.reduce(function(s,l){return s+l.count},0);
     var totA=lotes.reduce(function(s,l){return s+l.alvo},0);
     var dt=fmtData(new Date().toISOString());
+    var listaHtml=lotes.map(function(l,i){return (i+1)+"º Lote "+l.lote+": "+l.count+"/"+l.alvo+" bags";}).join("<br>");
+    var listaTxt=lotes.map(function(l,i){return (i+1)+"º Lote "+l.lote+": "+l.count+"/"+l.alvo+" bags";}).join("\n");
+    var params={placa:placa,ordem:(ordem||"-"),data:dt,lista:listaHtml,total:(tot+"/"+totA+" bags")};
     var assunto="Carga "+placa+(ordem?(" - ordem "+ordem):"")+" - "+dt;
-    var corpo="CONFERÊNCIA DE CARREGAMENTO\n\nPlaca: "+placa+"\nOrdem: "+(ordem||"-")+"\nData: "+dt+"\n\nLotes carregados:\n";
-    lotes.forEach(function(l,i){corpo+=(i+1)+"º Lote "+l.lote+": "+l.count+"/"+l.alvo+" bags\n";});
-    corpo+="\nTotal: "+tot+"/"+totA+" bags\n\n— Assistente Batovi I.A";
-    var cc=encodeURIComponent("comercial01@sementesbatovi.com.br,comercial02@sementesbatovi.com.br");
-    var href="mailto:fazenda@sementesbatovi.com.br?cc="+cc+"&subject="+encodeURIComponent(assunto)+"&body="+encodeURIComponent(corpo);
-    try{window.location.href=href;}catch(e){}
+    var corpo="CONFERÊNCIA DE CARREGAMENTO\n\nPlaca: "+placa+"\nOrdem: "+(ordem||"-")+"\nData: "+dt+"\n\nLotes carregados:\n"+listaTxt+"\n\nTotal: "+tot+"/"+totA+" bags\n\n— Assistente Batovi I.A";
+    function mailto(){var cc=encodeURIComponent("comercial01@sementesbatovi.com.br,comercial02@sementesbatovi.com.br");
+      try{window.location.href="mailto:fazenda@sementesbatovi.com.br?cc="+cc+"&subject="+encodeURIComponent(assunto)+"&body="+encodeURIComponent(corpo);}catch(e){}}
+    if(window.emailjs){
+      toast("Enviando e-mail…",null);
+      emailjs.send(EMAIL.servico,EMAIL.template,params)
+        .then(function(){toast("E-mail enviado ✓",true);})
+        .catch(function(err){toast("Envio automático falhou — abrindo e-mail",false);setTimeout(mailto,900);});
+    } else { mailto(); }
   }
   function voltarSetup(){$("scan").hidden=true;$("setup").hidden=false;$("histCard").hidden=false;
     $("log").innerHTML="";ultima="";travado=false;$("overlay").hidden=true;renderHist();}
