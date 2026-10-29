@@ -63,7 +63,7 @@
   .overlay{position:fixed;inset:0;z-index:30;background:var(--err);color:#fff;display:flex;flex-direction:column;
     align-items:center;justify-content:center;text-align:center;gap:16px;padding:24px}
   .overlay h2{font-size:2.3rem;margin:0;letter-spacing:1px}
-  .overlay .d{font-size:1.1rem;max-width:34ch}.overlay .d b{display:block;font-size:1.4rem;margin-top:6px;font-family:ui-monospace,monospace}
+  .overlay .d{font-size:1.1rem;max-width:34ch}.overlay .d b{display:block;font-size:1.35rem;margin-top:6px;font-family:ui-monospace,monospace;white-space:pre-line;line-height:1.35}
   .overlay button{background:#fff;color:var(--err);border:none;font-size:1.25rem;padding:15px 28px}
   .siren{width:76px;height:76px;border-radius:50%;background:rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;font-size:2.6rem;animation:p 1s infinite}
   @keyframes p{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
@@ -86,7 +86,7 @@
 <div class="wrap">
   <div class="headrow">
     <div><span class="tag">Sementes Batovi</span><h1>Conferente de Lote</h1>
-      <div class="sub">Lê o QR de cada bag e trava se não for um dos lotes da placa.</div></div>
+      <div class="sub">Confere o QR na sequência do carregamento e trava se sair da ordem ou vier lote errado.</div></div>
   </div>
 
   <!-- SETUP -->
@@ -158,8 +158,8 @@
 
 <div class="overlay" id="overlay" hidden>
   <div class="siren">🚨</div>
-  <h2>LOTE ERRADO</h2>
-  <div class="d">Esse bag não é de nenhum lote desta placa.<b id="ovDetail"></b></div>
+  <h2 id="ovTitle">LOTE ERRADO</h2>
+  <div class="d"><b id="ovDetail"></b></div>
   <button id="ovBtn">ENTENDI — CONTINUAR</button>
 </div>
 
@@ -244,21 +244,44 @@
     li.appendChild(m);li.appendChild(c);li.appendChild(t);ul.insertBefore(li,ul.firstChild);
     while(ul.children.length>50)ul.removeChild(ul.lastChild);}
 
+  function currentIdx(){ for(var i=0;i<lotes.length;i++){ if(!loteDone(lotes[i])) return i; } return -1; }
+
   function processa(raw){
     var lido=(raw||"").trim(); if(!lido||travado) return;
     var now=Date.now(); if(lido===ultima&&(now-ultimaT)<900){ultimaT=now;return} ultima=lido;ultimaT=now;
+
     var m=achaLote(lido);
-    if(m){
-      m.count++; renderCont();
-      if(m.alvo&&m.count>m.alvo){ statusFlash("err","LOTE 15 PASSOU DO TOTAL".replace("15",m.lote),lido); somErro(); vibra([100,60,100]); addLog("err","Lote "+m.lote+" passou de "+m.alvo+"  ·  "+lido); travar(lido,"Lote "+m.lote+" já estava completo ("+m.alvo+").\nLido a mais: "+lido); return; }
-      if(m.alvo&&m.count===m.alvo){ statusFlash("ok","LOTE "+m.lote+" COMPLETO ✓ ("+m.count+"/"+m.alvo+")",lido); somDone(); vibra(90); addLog("ok","Lote "+m.lote+" COMPLETO "+m.count+"/"+m.alvo); }
-      else { statusFlash("ok","BAG OK ✓  (Lote "+m.lote+(m.alvo?"  "+m.count+"/"+m.alvo:"")+")",lido); somOK(); vibra(60); addLog("ok","Lote "+m.lote+(m.alvo?"  "+m.count+"/"+m.alvo:"")+"  ·  "+lido); }
+    // 1) nao esta em nenhum lote da carga
+    if(!m){
+      statusFlash("err","LOTE ERRADO ✗",lido); somErro(); vibra([120,80,120,80,200]); addLog("err","LOTE ERRADO · "+lido);
+      travar("LOTE ERRADO","Esse bag não é de nenhum lote desta carga.\nLido: "+lido); return;
+    }
+    var ci=currentIdx();
+    var seqM=lotes.indexOf(m)+1;
+    // 2) carga ja completa
+    if(ci<0){
+      statusFlash("err","CARGA JÁ COMPLETA ✗",lido); somErro(); vibra([100,60,100]); addLog("err","bag a mais (carga completa) · "+lido);
+      travar("CARGA COMPLETA","Todos os lotes já estão completos.\nBag a mais: Lote "+m.lote); return;
+    }
+    // 3) fora de sequencia (lote existe, mas nao e o da vez)
+    if(lotes[ci]!==m){
+      statusFlash("err","FORA DE SEQUÊNCIA ✗",lido); somErro(); vibra([120,80,120,80,200]);
+      addLog("err","fora de sequência: bipou Lote "+m.lote+", era "+(ci+1)+"º Lote "+lotes[ci].lote);
+      travar("FORA DE SEQUÊNCIA","Agora é o "+(ci+1)+"º — Lote "+lotes[ci].lote+" ("+lotes[ci].count+"/"+lotes[ci].alvo+").\nVocê bipou o "+seqM+"º — Lote "+m.lote+".");
+      return;
+    }
+    // 4) e o lote da vez -> conta
+    m.count++; renderCont();
+    if(m.count===m.alvo){
+      var prox=currentIdx();
+      var msg = prox<0 ? ("LOTE "+m.lote+" COMPLETO ✓ — CARGA FINALIZADA") : ("LOTE "+m.lote+" COMPLETO ✓ — agora o "+(prox+1)+"º (Lote "+lotes[prox].lote+")");
+      statusFlash("ok",msg,lido); somDone(); vibra(120); addLog("ok","Lote "+m.lote+" COMPLETO "+m.count+"/"+m.alvo);
     } else {
-      statusFlash("err","LOTE ERRADO ✗",lido); somErro(); vibra([120,80,120,80,200]); addLog("err",lido);
-      travar(lido,"Esperado um de: "+lotes.map(function(l){return l.lote}).join(", ")+"   •   Lido: "+lido);
+      statusFlash("ok","BAG OK ✓  (Lote "+m.lote+"  "+m.count+"/"+m.alvo+")",lido); somOK(); vibra(60);
+      addLog("ok","Lote "+m.lote+"  "+m.count+"/"+m.alvo+"  ·  "+lido);
     }
   }
-  function travar(lido,detalhe){ travado=true; $("ovDetail").textContent=detalhe; $("overlay").hidden=false; }
+  function travar(titulo,detalhe){ travado=true; $("ovTitle").textContent=titulo||"ALERTA"; $("ovDetail").textContent=detalhe; $("overlay").hidden=false; }
   $("ovBtn").onclick=function(){$("overlay").hidden=true;travado=false;statusFlash(null,"Aponte no próximo bag","");focoManual()};
 
   // ---------- camera ----------
@@ -291,6 +314,8 @@
     $("loteAdd").value="";$("qtdAdd").value="";
     if(!placa){alert("Informe a placa do caminhão.");return}
     if(!lotes.length){alert("Adicione pelo menos um lote da ordem.");return}
+    var semQtd=lotes.filter(function(l){return !l.alvo});
+    if(semQtd.length){alert("Informe a quantidade de bags de cada lote (a sequência precisa disso): "+semQtd.map(function(l){return "Lote "+l.lote}).join(", "));return}
     lotes.forEach(function(l){l.count=0});
     $("ordemShow").textContent=ordem||"—"; $("placaShow").textContent=placa;
     $("setup").hidden=true;$("histCard").hidden=true;$("scan").hidden=false;
