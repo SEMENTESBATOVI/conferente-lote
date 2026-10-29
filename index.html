@@ -346,7 +346,8 @@
   function enviarEmail(){
     var tot=lotes.reduce(function(s,l){return s+l.count},0);
     var totA=lotes.reduce(function(s,l){return s+l.alvo},0);
-    var dt=fmtData(new Date().toISOString());
+    var _n=new Date(),_p=function(n){return(""+n).padStart(2,"0")};
+    var dt=_p(_n.getDate())+"-"+_p(_n.getMonth()+1)+"-"+_n.getFullYear()+" "+_p(_n.getHours())+":"+_p(_n.getMinutes());
     var listaHtml=lotes.map(function(l,i){return (i+1)+"º Lote "+l.lote+": "+l.count+"/"+l.alvo+" bags";}).join("<br>");
     var listaTxt=lotes.map(function(l,i){return (i+1)+"º Lote "+l.lote+": "+l.count+"/"+l.alvo+" bags";}).join("\n");
     var params={placa:placa,ordem:(ordem||"-"),data:dt,lista:listaHtml,total:(tot+"/"+totA+" bags")};
