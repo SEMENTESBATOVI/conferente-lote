@@ -150,7 +150,7 @@
         <button class="ghost" id="btnLimpar" style="padding:7px 10px;font-size:.82rem">Limpar</button>
       </div>
     </div>
-    <input type="text" id="busca" placeholder="Pesquisar por nº da ordem ou placa…" autocomplete="off" style="font-size:1rem;margin-bottom:10px">
+    <input type="text" id="busca" placeholder="Pesquisar por nº da ordem, placa ou lote…" autocomplete="off" style="font-size:1rem;margin-bottom:10px">
     <ul class="hist" id="hist" style="list-style:none;margin:0;padding:0"></ul>
     <div class="hint" id="histVazio">Nenhuma carga salva ainda. As cargas finalizadas aparecem aqui, guardadas neste celular.</div>
   </div>
@@ -345,7 +345,7 @@
     return p(d.getDate())+"/"+p(d.getMonth()+1)+"/"+d.getFullYear()+" "+p(d.getHours())+":"+p(d.getMinutes());}
   function renderHist(){
     var a=lerHist(),q=soAlnum($("busca").value);
-    if(q)a=a.filter(function(c){return soAlnum(c.ordem).indexOf(q)>=0||soAlnum(c.placa).indexOf(q)>=0});
+    if(q)a=a.filter(function(c){return soAlnum(c.ordem).indexOf(q)>=0||soAlnum(c.placa).indexOf(q)>=0||c.lotes.some(function(l){return soAlnum(l.lote).indexOf(q)>=0})});
     var ul=$("hist");ul.innerHTML="";
     $("histVazio").hidden=a.length>0;
     if(!a.length&&q){$("histVazio").hidden=false;$("histVazio").textContent="Nada encontrado para \""+$("busca").value+"\".";}
