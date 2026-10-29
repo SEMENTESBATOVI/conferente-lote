@@ -91,24 +91,29 @@
       <div class="sub">Leia o QR de cada bag na ordem do carregamento. Se algum vier fora da sequência ou de outro lote, o alarme dispara na hora.</div><div class="brandbar"></div></div>
   </div>
 
+  <!-- SETUP -->
   <div class="card" id="setup">
-    <label for="placa">Placa do caminhão</label>
-    <input type="text" id="placa" placeholder="ex: ABC-1D23" autocomplete="off">
-    <div style="height:14px"></div>
-    <label>Sequência de carregamento (ordem + lote + qtd, na ordem de carregar)</label>
     <div class="row">
-      <input type="text" id="ordemAdd" inputmode="numeric" placeholder="Ordem" autocomplete="off" style="flex:1">
-      <input type="text" id="loteAdd" inputmode="numeric" placeholder="Lote" autocomplete="off" style="flex:1.3">
-      <input type="text" id="qtdAdd" inputmode="numeric" placeholder="Qtd" autocomplete="off" style="flex:.9">
+      <div style="flex:1"><label for="ordem">Nº da ordem de carregamento</label>
+        <input type="text" id="ordem" inputmode="numeric" placeholder="ex: 3443" autocomplete="off"></div>
+      <div style="flex:1"><label for="placa">Placa do caminhão</label>
+        <input type="text" id="placa" placeholder="ex: ABC-1D23" autocomplete="off"></div>
+    </div>
+    <div style="height:14px"></div>
+    <label>Sequência de carregamento (lote + qtd de bags, na ordem)</label>
+    <div class="row">
+      <input type="text" id="loteAdd" inputmode="numeric" placeholder="Lote" autocomplete="off" style="flex:1.4">
+      <input type="text" id="qtdAdd" inputmode="numeric" placeholder="Qtd bags" autocomplete="off" style="flex:1">
       <button id="btnAddLote" style="flex:1">Adicionar</button>
     </div>
     <div class="chips" id="lotesChips"></div>
-    <div class="hint">Adicione na ordem de carregar. A <b>Ordem</b> fica preenchida pra você lançar vários lotes dela seguidos (ex: Ordem 665 → 796558/1, 796555/4, 796565/6; depois muda pra 666...). Toque no item pra remover.</div>
+    <div class="hint">Adicione na ordem do carregamento (ex: 1º Lote 756502, 30 bags → 2º Lote 756503, 25 bags). Até <b>8 lotes</b>. Toque no lote pra remover.</div>
     <div style="height:16px"></div>
     <button class="primary" id="btnStart" style="width:100%">Começar conferência</button>
     <div class="hint">Vai pedir a <b>câmera</b> — toque em <b>Permitir</b>. Também funciona com pistola/leitor ou digitando.</div>
   </div>
 
+  <!-- SCAN -->
   <div id="scan" hidden style="display:flex;flex-direction:column;gap:12px">
     <div class="cam" id="camBox">
       <video id="video" playsinline muted></video>
@@ -120,7 +125,8 @@
       <div class="code" id="statusCode"></div>
     </div>
     <div class="card" style="padding:12px 14px">
-      <div class="headrow"><label style="margin:0">Placa <span class="tot" id="placaShow"></span></label>
+      <div class="headrow">
+        <label style="margin:0">Ordem <span class="tot" id="ordemShow"></span> · Placa <span class="tot" id="placaShow"></span></label>
         <span class="meta tot" id="totShow" style="color:var(--muted);font-size:.8rem"></span></div>
       <div class="chips" id="contChips"></div>
     </div>
@@ -135,6 +141,7 @@
     <ul class="log" id="log"></ul>
   </div>
 
+  <!-- HISTORICO -->
   <div class="card" id="histCard">
     <div class="headrow" style="margin-bottom:8px">
       <label style="margin:0">Cargas salvas</label>
@@ -162,23 +169,24 @@
 (function(){
   "use strict";
   var $=function(id){return document.getElementById(id)};
-  var HKEY="batovi_cargas_v3";
-  var slots=[];            // {ordem,lote,alvo,count}
-  var placa="";
-  var ultima="",ultimaT=0,travado=false;
-  var stream=null,detector=null,scanning=false;
+  var HKEY="batovi_cargas_v2";
+
+  var lotes=[];            // [{lote, alvo, count}]
+  var ordem="", placa="";
+  var ultima="", ultimaT=0, travado=false;
+  var stream=null, detector=null, scanning=false;
 
   function soAlnum(s){return (s||"").toUpperCase().replace(/[^A-Z0-9]/g,"")}
   function numToks(s){return (s||"").match(/\d+/g)||[]}
-  function matchLote(lido,lote){
-    var L=soAlnum(lido),E=soAlnum(lote); if(!E)return false;
-    if(L===E)return true;
-    if(/^\d+$/.test(E)){var t=numToks(lido);for(var j=0;j<t.length;j++)if(t[j]===E)return true;}
-    return false;
+  function achaLote(lido){
+    var L=soAlnum(lido);
+    for(var i=0;i<lotes.length;i++){
+      var E=soAlnum(lotes[i].lote);
+      if(E && L===E) return lotes[i];
+      if(/^\d+$/.test(E)){ var t=numToks(lido); for(var j=0;j<t.length;j++){ if(t[j]===E) return lotes[i]; } }
+    }
+    return null;
   }
-  function achaSlotQualquer(lido){for(var i=0;i<slots.length;i++)if(matchLote(lido,slots[i].lote))return i;return -1;}
-  function slotDone(s){return s.count>=s.alvo}
-  function currentIdx(){for(var i=0;i<slots.length;i++)if(!slotDone(slots[i]))return i;return -1;}
 
   var ac=null;
   function beep(f,d,v,ty){try{if(!ac)ac=new(window.AudioContext||window.webkitAudioContext)();if(ac.state==="suspended")ac.resume();
@@ -189,79 +197,96 @@
   function somErro(){beep(220,.25,.14,"square");setTimeout(function(){beep(180,.35,.14,"square")},180);setTimeout(function(){beep(180,.35,.14,"square")},520)}
   function vibra(p){try{if(navigator.vibrate)navigator.vibrate(p)}catch(e){}}
 
-  function addSlot(ord,lt,qt){
-    lt=(lt||"").trim(); if(!lt)return;
-    ord=(ord||"").trim();
+  // ---------- setup: lotes ----------
+  function addLote(lt,qt){
+    lt=(lt||"").trim(); if(!lt) return;
     var alvo=parseInt((qt||"").replace(/\D/g,""),10)||0;
-    if(slots.length>=40){alert("Limite de 40 lotes na carga.");return;}
-    slots.push({ordem:ord,lote:lt,alvo:alvo,count:0});
+    var ex=lotes.filter(function(l){return soAlnum(l.lote)===soAlnum(lt)})[0];
+    if(ex){ ex.alvo=alvo; }
+    else { if(lotes.length>=8){alert("A ordem pode ter no máximo 8 lotes.");return;} lotes.push({lote:lt,alvo:alvo,count:0}); }
     renderChips();
   }
   function renderChips(){
-    var c=$("lotesChips");c.innerHTML="";
-    slots.forEach(function(s,i){
-      var el=document.createElement("span");el.className="chip has";
-      el.innerHTML="<span class='seq'>"+(i+1)+"º</span> Ord "+(s.ordem||"—")+" · Lote "+s.lote+" <span class='n'>"+(s.alvo?s.alvo+" bags":"s/ qtd")+"</span> <span class='x'>✕</span>";
-      el.querySelector(".x").onclick=function(){slots.splice(i,1);renderChips()};
-      c.appendChild(el);
+    var c=$("lotesChips"); c.innerHTML="";
+    lotes.forEach(function(l,i){
+      var s=document.createElement("span"); s.className="chip has";
+      s.innerHTML="<span class='seq'>"+(i+1)+"º</span> Lote "+l.lote+" <span class='n'>"+(l.alvo?l.alvo+" bags":"s/ qtd")+"</span> <span class='x'>✕</span>";
+      s.querySelector(".x").onclick=function(){lotes.splice(i,1);renderChips()};
+      c.appendChild(s);
     });
   }
-  $("btnAddLote").onclick=function(){addSlot($("ordemAdd").value,$("loteAdd").value,$("qtdAdd").value);$("loteAdd").value="";$("qtdAdd").value="";$("loteAdd").focus()};
+  $("btnAddLote").onclick=function(){addLote($("loteAdd").value,$("qtdAdd").value);$("loteAdd").value="";$("qtdAdd").value="";$("loteAdd").focus()};
   $("loteAdd").addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();$("qtdAdd").focus()}});
   $("qtdAdd").addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();$("btnAddLote").click()}});
 
+  // ---------- scan: contagem ----------
+  function loteDone(l){ return l.alvo && l.count>=l.alvo; }
   function renderCont(){
-    var c=$("contChips");c.innerHTML="";var tot=0,alvoTot=0;var ci=currentIdx();
-    slots.forEach(function(s,i){
-      tot+=s.count;alvoTot+=s.alvo;
-      var cls="chip";if(slotDone(s))cls+=" done";else if(s.count)cls+=" has";
-      if(i===ci)cls+=" cur";
-      var el=document.createElement("span");el.className=cls;
-      el.innerHTML="<span class='seq'>"+(i+1)+"º</span> Ord "+(s.ordem||"—")+" L"+s.lote+" <span class='n'>"+s.count+"/"+s.alvo+"</span>";
-      c.appendChild(el);
+    var c=$("contChips"); c.innerHTML=""; var tot=0,alvoTot=0;
+    // "da vez" = primeiro lote da sequencia ainda nao completo
+    var curIdx=-1; for(var k=0;k<lotes.length;k++){ if(!loteDone(lotes[k])){curIdx=k;break;} }
+    lotes.forEach(function(l,i){
+      tot+=l.count; alvoTot+=l.alvo;
+      var s=document.createElement("span");
+      var cls="chip"; if(loteDone(l))cls+=" done"; else if(l.count)cls+=" has";
+      if(l.alvo&&l.count>l.alvo)cls+=" over"; if(i===curIdx)cls+=" cur"; s.className=cls;
+      var badge=l.alvo?(l.count+"/"+l.alvo):(""+l.count);
+      s.innerHTML="<span class='seq'>"+(i+1)+"º</span> Lote "+l.lote+" <span class='n'>"+badge+"</span>";
+      c.appendChild(s);
     });
-    $("totShow").textContent=tot+"/"+alvoTot+" bags";
+    $("totShow").textContent = alvoTot ? (tot+"/"+alvoTot+" bags") : (tot+" bag(s)");
   }
   function statusFlash(cls,msg,code){var b=$("statusBox");b.classList.remove("ok","err");if(cls)b.classList.add(cls);
     $("statusMsg").textContent=msg;$("statusCode").textContent=code||"";}
   function addLog(cls,txt){var ul=$("log"),li=document.createElement("li");
-    var m=document.createElement("span");m.className="m "+cls;m.textContent=cls==="ok"?"✓":"✕";
+    var m=document.createElement("span");m.className="m "+cls;m.textContent=cls==="ok"?"✓":"✗";
     var c=document.createElement("span");c.className="c";c.textContent=txt;
     var t=document.createElement("span");t.className="t";var d=new Date();
     t.textContent=(""+d.getHours()).padStart(2,"0")+":"+(""+d.getMinutes()).padStart(2,"0");
     li.appendChild(m);li.appendChild(c);li.appendChild(t);ul.insertBefore(li,ul.firstChild);
     while(ul.children.length>50)ul.removeChild(ul.lastChild);}
-  function travar(titulo,detalhe){travado=true;$("ovTitle").textContent=titulo||"ALERTA";$("ovDetail").textContent=detalhe;$("overlay").hidden=false;}
-  $("ovBtn").onclick=function(){$("overlay").hidden=true;travado=false;statusFlash(null,"Aponte no próximo bag","");focoManual()};
+
+  function currentIdx(){ for(var i=0;i<lotes.length;i++){ if(!loteDone(lotes[i])) return i; } return -1; }
 
   function processa(raw){
-    var lido=(raw||"").trim();if(!lido||travado)return;
-    var now=Date.now();if(lido===ultima&&(now-ultimaT)<900){ultimaT=now;return}ultima=lido;ultimaT=now;
+    var lido=(raw||"").trim(); if(!lido||travado) return;
+    var now=Date.now(); if(lido===ultima&&(now-ultimaT)<900){ultimaT=now;return} ultima=lido;ultimaT=now;
+
+    var m=achaLote(lido);
+    // 1) nao esta em nenhum lote da carga
+    if(!m){
+      statusFlash("err","LOTE ERRADO ✗",lido); somErro(); vibra([120,80,120,80,200]); addLog("err","LOTE ERRADO · "+lido);
+      travar("LOTE ERRADO","Esse bag não é de nenhum lote desta carga.\nLido: "+lido); return;
+    }
     var ci=currentIdx();
-    if(ci<0){statusFlash("err","CARGA JÁ COMPLETA ✗",lido);somErro();vibra([100,60,100]);addLog("err","bag a mais (carga completa) · "+lido);travar("CARGA COMPLETA","Todos os lotes já estão completos.\nBag a mais: "+lido);return;}
-    var cur=slots[ci];
-    if(matchLote(lido,cur.lote)){
-      cur.count++;renderCont();
-      if(cur.count>=cur.alvo){
-        var prox=currentIdx();
-        var msg=prox<0?("LOTE "+cur.lote+" COMPLETO ✓ — CARGA FINALIZADA"):("LOTE "+cur.lote+" COMPLETO ✓ — agora "+(prox+1)+"º Lote "+slots[prox].lote);
-        statusFlash("ok",msg,lido);somDone();vibra(120);addLog("ok","Ord "+cur.ordem+" Lote "+cur.lote+" COMPLETO "+cur.count+"/"+cur.alvo);
-      } else {
-        statusFlash("ok","BAG OK ✓  (Lote "+cur.lote+"  "+cur.count+"/"+cur.alvo+")",lido);somOK();vibra(60);addLog("ok","Ord "+cur.ordem+" Lote "+cur.lote+"  "+cur.count+"/"+cur.alvo+" · "+lido);
-      }
+    var seqM=lotes.indexOf(m)+1;
+    // 2) carga ja completa
+    if(ci<0){
+      statusFlash("err","CARGA JÁ COMPLETA ✗",lido); somErro(); vibra([100,60,100]); addLog("err","bag a mais (carga completa) · "+lido);
+      travar("CARGA COMPLETA","Todos os lotes já estão completos.\nBag a mais: Lote "+m.lote); return;
+    }
+    // 3) fora de sequencia (lote existe, mas nao e o da vez)
+    if(lotes[ci]!==m){
+      statusFlash("err","FORA DE SEQUÊNCIA ✗",lido); somErro(); vibra([120,80,120,80,200]);
+      addLog("err","fora de sequência: bipou Lote "+m.lote+", era "+(ci+1)+"º Lote "+lotes[ci].lote);
+      travar("FORA DE SEQUÊNCIA","Agora é o "+(ci+1)+"º — Lote "+lotes[ci].lote+" ("+lotes[ci].count+"/"+lotes[ci].alvo+").\nVocê bipou o "+seqM+"º — Lote "+m.lote+".");
       return;
     }
-    var outro=achaSlotQualquer(lido);
-    if(outro>=0){
-      statusFlash("err","FORA DE SEQUÊNCIA ✗",lido);somErro();vibra([120,80,120,80,200]);
-      addLog("err","fora de sequência: bipou Lote "+slots[outro].lote+", era "+(ci+1)+"º Lote "+cur.lote);
-      travar("FORA DE SEQUÊNCIA","Agora é o "+(ci+1)+"º — Lote "+cur.lote+" ("+cur.count+"/"+cur.alvo+").\nVocê bipou o Lote "+slots[outro].lote+".");
+    // 4) e o lote da vez -> conta
+    m.count++; renderCont();
+    if(m.count===m.alvo){
+      var prox=currentIdx();
+      var msg = prox<0 ? ("LOTE "+m.lote+" COMPLETO ✓ — CARGA FINALIZADA") : ("LOTE "+m.lote+" COMPLETO ✓ — agora o "+(prox+1)+"º (Lote "+lotes[prox].lote+")");
+      statusFlash("ok",msg,lido); somDone(); vibra(120); addLog("ok","Lote "+m.lote+" COMPLETO "+m.count+"/"+m.alvo);
     } else {
-      statusFlash("err","LOTE ERRADO ✗",lido);somErro();vibra([120,80,120,80,200]);addLog("err","LOTE ERRADO · "+lido);
-      travar("LOTE ERRADO","Esse bag não é de nenhum lote desta carga.\nLido: "+lido);
+      statusFlash("ok","BAG OK ✓  (Lote "+m.lote+"  "+m.count+"/"+m.alvo+")",lido); somOK(); vibra(60);
+      addLog("ok","Lote "+m.lote+"  "+m.count+"/"+m.alvo+"  ·  "+lido);
     }
   }
+  function travar(titulo,detalhe){ travado=true; $("ovTitle").textContent=titulo||"ALERTA"; $("ovDetail").textContent=detalhe; $("overlay").hidden=false; }
+  $("ovBtn").onclick=function(){$("overlay").hidden=true;travado=false;statusFlash(null,"Aponte no próximo bag","");focoManual()};
 
+  // ---------- camera ----------
   function startCam(){
     var off=$("camoff");
     if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){off.hidden=false;off.textContent="Este navegador não libera a câmera aqui. Use a pistola/leitor ou digite o código abaixo.";return;}
@@ -269,72 +294,67 @@
       stream=s;var v=$("video");v.srcObject=s;v.play();
       if("BarcodeDetector" in window){try{detector=new window.BarcodeDetector({formats:["qr_code"]})}catch(e){detector=null}}
       if(detector){scanning=true;loopDetect();}
-      else{off.hidden=false;off.textContent="A câmera abriu, mas este navegador não lê QR sozinho. Use a pistola/leitor ou digite. (No Android, o Chrome atualizado lê.)";}
+      else{off.hidden=false;off.textContent="A câmera abriu, mas este navegador não lê QR sozinho. Use a pistola/leitor ou digite o código. (No Android, o Chrome atualizado lê.)";}
     }).catch(function(err){off.hidden=false;off.textContent="Não consegui abrir a câmera ("+(err&&err.name||"erro")+"). Toque em Permitir quando pedir, ou use a pistola/leitor / digite.";});
   }
-  function loopDetect(){if(!scanning)return;var v=$("video");
+  function loopDetect(){ if(!scanning)return; var v=$("video");
     if(detector&&v.readyState>=2){detector.detect(v).then(function(c){if(c&&c.length)processa(c[0].rawValue)}).catch(function(){});}
-    setTimeout(function(){requestAnimationFrame(loopDetect)},220);}
+    setTimeout(function(){requestAnimationFrame(loopDetect)},220); }
   function stopCam(){scanning=false;if(stream){stream.getTracks().forEach(function(t){t.stop()});stream=null}}
 
+  // ---------- manual ----------
   function focoManual(){var e=$("manual");if(e&&!travado){try{e.focus()}catch(x){}}}
   (function(){var si=$("manual"),tmr=null;
     si.addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();var v=si.value;si.value="";processa(v)}});
     si.addEventListener("input",function(){if(tmr)clearTimeout(tmr);tmr=setTimeout(function(){if(si.value.trim()){var v=si.value;si.value="";processa(v)}},220)});
   })();
 
+  // ---------- fluxo ----------
   $("btnStart").onclick=function(){
-    placa=($("placa").value||"").trim();
-    if($("loteAdd").value.trim())addSlot($("ordemAdd").value,$("loteAdd").value,$("qtdAdd").value);
+    ordem=($("ordem").value||"").trim(); placa=($("placa").value||"").trim();
+    if($("loteAdd").value.trim())addLote($("loteAdd").value,$("qtdAdd").value);
     $("loteAdd").value="";$("qtdAdd").value="";
     if(!placa){alert("Informe a placa do caminhão.");return}
-    if(!slots.length){alert("Adicione pelo menos um lote da ordem.");return}
-    var semQtd=slots.filter(function(s){return !s.alvo});
-    if(semQtd.length){alert("Todos os lotes precisam de quantidade (a sequência precisa disso).");return}
-    slots.forEach(function(s){s.count=0});
-    $("placaShow").textContent=placa;
+    if(!lotes.length){alert("Adicione pelo menos um lote da ordem.");return}
+    var semQtd=lotes.filter(function(l){return !l.alvo});
+    if(semQtd.length){alert("Informe a quantidade de bags de cada lote (a sequência precisa disso): "+semQtd.map(function(l){return "Lote "+l.lote}).join(", "));return}
+    lotes.forEach(function(l){l.count=0});
+    $("ordemShow").textContent=ordem||"—"; $("placaShow").textContent=placa;
     $("setup").hidden=true;$("histCard").hidden=true;$("scan").hidden=false;
     renderCont();beep(660,.08,.05,"sine");startCam();focoManual();statusFlash(null,"Aponte no QR do bag","");
   };
   $("btnCancel").onclick=function(){if(!window.confirm("Cancelar sem salvar esta carga?"))return;stopCam();voltarSetup();};
   $("btnFinal").onclick=function(){
-    var inc=slots.filter(function(s){return s.count<s.alvo});
-    if(inc.length){if(!window.confirm("Ainda faltam bags em "+inc.length+" lote(s). Finalizar assim mesmo?"))return;}
+    var inc=lotes.filter(function(l){return l.alvo&&l.count<l.alvo});
+    if(inc.length){ if(!window.confirm("Ainda faltam bags: "+inc.map(function(l){return "Lote "+l.lote+" ("+l.count+"/"+l.alvo+")"}).join(", ")+".\nFinalizar assim mesmo?"))return; }
     salvarCarga();stopCam();voltarSetup();statusFlash(null,"Carga salva ✓","");
   };
   function voltarSetup(){$("scan").hidden=true;$("setup").hidden=false;$("histCard").hidden=false;
     $("log").innerHTML="";ultima="";travado=false;$("overlay").hidden=true;renderHist();}
 
+  // ---------- historico ----------
   function lerHist(){try{return JSON.parse(localStorage.getItem(HKEY)||"[]")}catch(e){return []}}
   function gravarHist(a){try{localStorage.setItem(HKEY,JSON.stringify(a))}catch(e){}}
-  function salvarCarga(){
-    var ords=[];slots.forEach(function(s){if(s.ordem&&ords.indexOf(s.ordem)<0)ords.push(s.ordem)});
-    var a=lerHist();
-    a.unshift({placa:placa,quando:new Date().toISOString(),ordens:ords,
-      slots:slots.map(function(s){return{ordem:s.ordem,lote:s.lote,alvo:s.alvo,count:s.count}}),
-      total:slots.reduce(function(x,s){return x+s.count},0),
-      alvoTotal:slots.reduce(function(x,s){return x+s.alvo},0)});
-    gravarHist(a);
-  }
+  function salvarCarga(){var a=lerHist();
+    a.unshift({ordem:ordem,placa:placa,quando:new Date().toISOString(),
+      lotes:lotes.map(function(l){return {lote:l.lote,alvo:l.alvo,count:l.count}}),
+      total:lotes.reduce(function(s,l){return s+l.count},0),
+      alvoTotal:lotes.reduce(function(s,l){return s+l.alvo},0)});
+    gravarHist(a);}
   function fmtData(iso){var d=new Date(iso),p=function(n){return(""+n).padStart(2,"0")};
     return p(d.getDate())+"/"+p(d.getMonth()+1)+"/"+d.getFullYear()+" "+p(d.getHours())+":"+p(d.getMinutes());}
   function renderHist(){
     var a=lerHist(),q=soAlnum($("busca").value);
-    if(q)a=a.filter(function(c){
-      if(soAlnum(c.placa).indexOf(q)>=0)return true;
-      if((c.ordens||[]).some(function(o){return soAlnum(o).indexOf(q)>=0}))return true;
-      if((c.slots||[]).some(function(s){return soAlnum(s.lote).indexOf(q)>=0}))return true;
-      return false;
-    });
+    if(q)a=a.filter(function(c){return soAlnum(c.ordem).indexOf(q)>=0||soAlnum(c.placa).indexOf(q)>=0||c.lotes.some(function(l){return soAlnum(l.lote).indexOf(q)>=0})});
     var ul=$("hist");ul.innerHTML="";
     $("histVazio").hidden=a.length>0;
     if(!a.length&&q){$("histVazio").hidden=false;$("histVazio").textContent="Nada encontrado para \""+$("busca").value+"\".";}
     else $("histVazio").textContent="Nenhuma carga salva ainda. As cargas finalizadas aparecem aqui, guardadas neste celular.";
     a.forEach(function(c){
       var li=document.createElement("li");
-      var sl=(c.slots||[]).map(function(s,i){return (i+1)+"º Ord "+(s.ordem||"—")+" L"+s.lote+": "+s.count+"/"+s.alvo}).join("  •  ");
-      li.innerHTML="<span class='pl'>"+c.placa+"</span> — <b>"+c.total+"/"+(c.alvoTotal||0)+" bag(s)</b><br>"+
-        "<span class='ord'>Ordens: "+((c.ordens||[]).join(", ")||"—")+"</span> · <span class='meta'>"+fmtData(c.quando)+"</span><br>"+sl;
+      var lts=c.lotes.map(function(l,i){return (i+1)+"º Lote "+l.lote+": "+l.count+(l.alvo?"/"+l.alvo:"")}).join("  •  ");
+      li.innerHTML="<span class='ord'>Ordem "+(c.ordem||"—")+"</span> · <span class='pl'>"+c.placa+"</span> — <b>"+c.total+(c.alvoTotal?"/"+c.alvoTotal:"")+" bag(s)</b><br>"+
+        "<span class='meta'>"+fmtData(c.quando)+"</span><br>"+lts;
       ul.appendChild(li);
     });
   }
@@ -342,8 +362,8 @@
   $("btnLimpar").onclick=function(){if(window.confirm("Apagar TODAS as cargas salvas deste celular?")){gravarHist([]);renderHist()}};
   $("btnExport").onclick=function(){
     var a=lerHist();if(!a.length){alert("Não há cargas pra exportar.");return}
-    var linhas=["Placa;Data;Ordem;Seq;Lote;Bags;QtdPrevista;TotalCarga"];
-    a.forEach(function(c){(c.slots||[]).forEach(function(s,i){linhas.push([c.placa,fmtData(c.quando),s.ordem,(i+1)+"º",s.lote,s.count,s.alvo,c.total].join(";"))})});
+    var linhas=["Ordem;Placa;Data;Seq;Lote;Bags;QtdPrevista;TotalCarga"];
+    a.forEach(function(c){c.lotes.forEach(function(l,i){linhas.push([c.ordem,c.placa,fmtData(c.quando),(i+1)+"º",l.lote,l.count,l.alvo||"",c.total].join(";"))})});
     var blob=new Blob(["﻿"+linhas.join("\n")],{type:"text/csv;charset=utf-8"});
     var url=URL.createObjectURL(blob),a2=document.createElement("a");
     a2.href=url;a2.download="cargas_batovi.csv";document.body.appendChild(a2);a2.click();
@@ -351,7 +371,7 @@
   };
 
   renderHist();
-  try{$("placa").focus()}catch(e){}
+  try{$("ordem").focus()}catch(e){}
 })();
 </script>
 </body>
