@@ -33,7 +33,8 @@
   .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:15px}
   label{display:block;font-size:.78rem;color:var(--muted);margin-bottom:6px;font-weight:700}
   input[type=text]{width:100%;font-size:1.2rem;padding:11px 13px;border:2px solid var(--line);
-    border-radius:10px;background:var(--bg);color:var(--fg);font-family:ui-monospace,"Courier New",monospace;letter-spacing:.5px}
+    border-radius:10px;background:var(--bg);color:var(--fg);font-family:ui-monospace,"Courier New",monospace;letter-spacing:.5px;text-transform:uppercase}
+  input[type=text]::placeholder{text-transform:none}
   input:focus{outline:none;border-color:var(--accent)}
   button{font:inherit;font-weight:700;cursor:pointer;border:1px solid var(--line);background:var(--surface);
     color:var(--fg);border-radius:10px;padding:12px 15px}
@@ -216,7 +217,7 @@
 
   // ---------- setup: lotes ----------
   function addLote(lt,qt){
-    lt=(lt||"").trim(); if(!lt) return;
+    lt=(lt||"").trim().toUpperCase(); if(!lt) return;
     var alvo=parseInt((qt||"").replace(/\D/g,""),10)||0;
     var ex=lotes.filter(function(l){return soAlnum(l.lote)===soAlnum(lt)})[0];
     if(ex){ ex.alvo=alvo; }
@@ -328,7 +329,7 @@
 
   // ---------- fluxo ----------
   $("btnStart").onclick=function(){
-    ordem=($("ordem").value||"").trim(); placa=($("placa").value||"").trim(); cliente=($("cliente").value||"").trim();
+    ordem=($("ordem").value||"").trim().toUpperCase(); placa=($("placa").value||"").trim().toUpperCase(); cliente=($("cliente").value||"").trim().toUpperCase();
     if($("loteAdd").value.trim())addLote($("loteAdd").value,$("qtdAdd").value);
     $("loteAdd").value="";$("qtdAdd").value="";
     if(!placa){alert("Informe a placa do caminhão.");return}
