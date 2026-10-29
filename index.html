@@ -337,7 +337,8 @@
     var corpo="CONFERÊNCIA DE CARREGAMENTO\n\nPlaca: "+placa+"\nOrdem: "+(ordem||"-")+"\nData: "+dt+"\n\nLotes carregados:\n";
     lotes.forEach(function(l,i){corpo+=(i+1)+"º Lote "+l.lote+": "+l.count+"/"+l.alvo+" bags\n";});
     corpo+="\nTotal: "+tot+"/"+totA+" bags\n\n— Assistente Batovi I.A";
-    var href="mailto:fazenda@sementesbatovi.com.br?subject="+encodeURIComponent(assunto)+"&body="+encodeURIComponent(corpo);
+    var cc=encodeURIComponent("comercial01@sementesbatovi.com.br,comercial02@sementesbatovi.com.br");
+    var href="mailto:fazenda@sementesbatovi.com.br?cc="+cc+"&subject="+encodeURIComponent(assunto)+"&body="+encodeURIComponent(corpo);
     try{window.location.href=href;}catch(e){}
   }
   function voltarSetup(){$("scan").hidden=true;$("setup").hidden=false;$("histCard").hidden=false;
