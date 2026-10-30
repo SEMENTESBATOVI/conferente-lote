@@ -99,17 +99,17 @@
   <!-- SETUP -->
   <div class="card" id="setup">
     <div class="row">
-      <div style="flex:1"><label for="ordem">Nº da ordem (os lotes abaixo entram nela)</label>
-        <input type="text" id="ordem" inputmode="numeric" placeholder="ex: 3443" autocomplete="off"></div>
       <div style="flex:1"><label for="placa">Placa do caminhão</label>
         <input type="text" id="placa" placeholder="ex: ABC-1D23" autocomplete="off"></div>
+      <div style="flex:1"><label for="responsavel">Responsável pelo carregamento</label>
+        <input type="text" id="responsavel" placeholder="ex: SEU NOME" autocomplete="off"></div>
     </div>
     <div style="height:14px"></div>
-    <label for="cliente">Cliente</label>
-    <input type="text" id="cliente" placeholder="ex: SINOVA INOVACOES AGRICOLAS S.A" autocomplete="off">
-    <div style="height:14px"></div>
-    <label for="responsavel">Responsável pelo carregamento</label>
-    <input type="text" id="responsavel" placeholder="ex: SEU NOME" autocomplete="off">
+    <label>Ordem e cliente (os lotes abaixo entram nesta ordem)</label>
+    <div class="row">
+      <input type="text" id="ordem" inputmode="numeric" placeholder="Nº da ordem (ex: 3443)" autocomplete="off" style="flex:1">
+      <input type="text" id="cliente" placeholder="Cliente desta ordem" autocomplete="off" style="flex:1.6">
+    </div>
     <div style="height:14px"></div>
     <label>Sequência de carregamento (lote + qtd de bags, na ordem)</label>
     <div class="row">
@@ -118,7 +118,7 @@
       <button id="btnAddLote" style="flex:1">Adicionar</button>
     </div>
     <div class="chips" id="lotesChips"></div>
-    <div class="hint">Cada lote entra na <b>ordem que estiver no campo acima</b>, na sequência do carregamento. Para outra ordem no <b>mesmo caminhão</b>, troque o nº da ordem e continue adicionando os lotes dela. Até <b>8 lotes por ordem</b>. Toque no lote pra remover.</div>
+    <div class="hint">Cada lote entra na <b>ordem/cliente acima</b>, na sequência do carregamento. Para outra ordem no <b>mesmo caminhão</b> (pode ser outro cliente), troque o <b>nº da ordem e o cliente</b> e continue adicionando os lotes. Até <b>8 lotes por ordem</b>. Toque no lote pra remover.</div>
     <div style="height:16px"></div>
     <button class="primary" id="btnStart" style="width:100%">Começar conferência</button>
     <div class="hint">Vai pedir a <b>câmera</b> — toque em <b>Permitir</b>. Também funciona com pistola/leitor ou digitando.</div>
@@ -220,17 +220,20 @@
 
   // ---------- setup: lotes ----------
   function ordensDistintas(){var seen=[];lotes.forEach(function(l){var o=l.ordem||"";if(o&&seen.indexOf(o)<0)seen.push(o)});return seen;}
+  function ordensInfo(){var seen=[],out=[];lotes.forEach(function(l){var o=l.ordem||"";if(o&&seen.indexOf(o)<0){seen.push(o);out.push({ordem:o,cliente:l.cliente||""});}});return out;}
+  function clientesDistintos(){var seen=[];lotes.forEach(function(l){var c=l.cliente||"";if(c&&seen.indexOf(c)<0)seen.push(c)});return seen;}
   function addLote(lt,qt){
     lt=(lt||"").trim().toUpperCase(); if(!lt) return;
     var ord=($("ordem").value||"").trim().toUpperCase();
     if(!ord){alert("Informe o nº da ordem antes de adicionar o lote.");try{$("ordem").focus()}catch(e){}return;}
+    var cli=($("cliente").value||"").trim().toUpperCase();
     var alvo=parseInt((qt||"").replace(/\D/g,""),10)||0;
     var ex=lotes.filter(function(l){return soAlnum(l.lote)===soAlnum(lt)&&soAlnum(l.ordem)===soAlnum(ord)})[0];
-    if(ex){ ex.alvo=alvo; }
+    if(ex){ ex.alvo=alvo; if(cli)ex.cliente=cli; }
     else {
       var naOrdem=lotes.filter(function(l){return soAlnum(l.ordem)===soAlnum(ord)}).length;
       if(naOrdem>=8){alert("Cada ordem pode ter no máximo 8 lotes.");return;}
-      lotes.push({lote:lt,alvo:alvo,count:0,ordem:ord});
+      lotes.push({lote:lt,alvo:alvo,count:0,ordem:ord,cliente:cli});
     }
     renderChips();
   }
@@ -239,7 +242,7 @@
     lotes.forEach(function(l,i){
       if(l.ordem!==lastOrd){ lastOrd=l.ordem;
         var h=document.createElement("span"); h.className="chip"; h.style.background="var(--bg)"; h.style.fontWeight="800";
-        h.innerHTML="<span class='seq'>ORDEM</span> "+l.ordem; c.appendChild(h); }
+        h.innerHTML="<span class='seq'>ORDEM</span> "+l.ordem+(l.cliente?(" · "+l.cliente):""); c.appendChild(h); }
       var s=document.createElement("span"); s.className="chip has";
       s.innerHTML="Lote "+l.lote+" <span class='n'>"+(l.alvo?l.alvo+" bags":"s/ qtd")+"</span> <span class='x'>✕</span>";
       s.querySelector(".x").onclick=function(){lotes.splice(i,1);renderChips()};
@@ -261,7 +264,7 @@
       tot+=l.count; alvoTot+=l.alvo;
       if(l.ordem!==lastOrd){ lastOrd=l.ordem;
         var h=document.createElement("span"); h.className="chip"; h.style.background="var(--bg)"; h.style.fontWeight="800";
-        h.innerHTML="<span class='seq'>ORDEM</span> "+l.ordem; c.appendChild(h); }
+        h.innerHTML="<span class='seq'>ORDEM</span> "+l.ordem+(l.cliente?(" · "+l.cliente):""); c.appendChild(h); }
       var s=document.createElement("span");
       var cls="chip"; if(loteDone(l))cls+=" done"; else if(l.count)cls+=" has";
       if(l.alvo&&l.count>l.alvo)cls+=" over"; if(i===curIdx)cls+=" cur"; s.className=cls;
@@ -346,7 +349,7 @@
 
   // ---------- fluxo ----------
   $("btnStart").onclick=function(){
-    placa=($("placa").value||"").trim().toUpperCase(); cliente=($("cliente").value||"").trim().toUpperCase();
+    placa=($("placa").value||"").trim().toUpperCase();
     responsavel=($("responsavel").value||"").trim().toUpperCase();
     try{localStorage.setItem("batovi_resp",responsavel);}catch(e){}
     if($("loteAdd").value.trim())addLote($("loteAdd").value,$("qtdAdd").value);
@@ -357,6 +360,7 @@
     if(semQtd.length){alert("Informe a quantidade de bags de cada lote: "+semQtd.map(function(l){return "Ordem "+l.ordem+" Lote "+l.lote}).join(", "));return}
     lotes.forEach(function(l){l.count=0});
     ordem=ordensDistintas().join(" / ");
+    cliente=clientesDistintos().join(" / ");
     $("ordemShow").textContent=ordem||"—"; $("placaShow").textContent=placa;
     $("clienteShow").textContent=(cliente?("Cliente: "+cliente):"")+(responsavel?((cliente?"  ·  ":"")+"Resp: "+responsavel):"");
     $("setup").hidden=true;$("histCard").hidden=true;$("scan").hidden=false;
@@ -373,14 +377,14 @@
     var totA=lotes.reduce(function(s,l){return s+l.alvo},0);
     var _n=new Date(),_p=function(n){return(""+n).padStart(2,"0")};
     var dt=_p(_n.getDate())+"-"+_p(_n.getMonth()+1)+"-"+_n.getFullYear()+" "+_p(_n.getHours())+":"+_p(_n.getMinutes());
-    var ords=ordensDistintas();
+    var oinfo=ordensInfo();
     function linhasPorOrdem(sep){ var out=[];
-      ords.forEach(function(o){ out.push(("ORDEM "+o).toUpperCase());
-        lotes.filter(function(l){return l.ordem===o}).forEach(function(l){ out.push(("  Lote "+l.lote+": "+l.count+"/"+l.alvo+" bags").toUpperCase()); }); });
+      oinfo.forEach(function(oi){ out.push(("ORDEM "+oi.ordem+(oi.cliente?(" - "+oi.cliente):"")).toUpperCase());
+        lotes.filter(function(l){return l.ordem===oi.ordem}).forEach(function(l){ out.push(("  Lote "+l.lote+": "+l.count+"/"+l.alvo+" bags").toUpperCase()); }); });
       return out.join(sep); }
     var listaHtml=linhasPorOrdem("<br>");
     var listaTxt=linhasPorOrdem("\n");
-    var ordStr=ords.join(" / ");
+    var ordStr=oinfo.map(function(x){return x.ordem}).join(" / ");
     var params={placa:placa,cliente:(cliente||"-"),responsavel:(responsavel||"-"),ordem:(ordStr||"-"),data:dt,lista:listaHtml,total:(tot+"/"+totA+" bags")};
     var assunto=("Carga "+placa+(cliente?(" - "+cliente):"")+(ordStr?(" - ordens "+ordStr):"")+" - "+dt).toUpperCase();
     var corpo=("CONFERÊNCIA DE CARREGAMENTO\n\nCliente: "+(cliente||"-")+"\nPlaca: "+placa+"\nOrdens: "+(ordStr||"-")+"\nData: "+dt+"\n\nLotes carregados:\n"+listaTxt+"\n\nTotal: "+tot+"/"+totA+" bags\n\nResponsável pelo carregamento: "+(responsavel||"-")+"\n\n— Assistente Batovi I.A").toUpperCase();
@@ -401,7 +405,7 @@
   function gravarHist(a){try{localStorage.setItem(HKEY,JSON.stringify(a))}catch(e){}}
   function salvarCarga(){var a=lerHist();
     a.unshift({ordem:ordensDistintas().join(" / "),placa:placa,cliente:cliente,responsavel:responsavel,quando:new Date().toISOString(),
-      lotes:lotes.map(function(l){return {lote:l.lote,alvo:l.alvo,count:l.count,ordem:l.ordem}}),
+      lotes:lotes.map(function(l){return {lote:l.lote,alvo:l.alvo,count:l.count,ordem:l.ordem,cliente:l.cliente}}),
       total:lotes.reduce(function(s,l){return s+l.count},0),
       alvoTotal:lotes.reduce(function(s,l){return s+l.alvo},0)});
     gravarHist(a);}
@@ -409,7 +413,7 @@
     return p(d.getDate())+"/"+p(d.getMonth()+1)+"/"+d.getFullYear()+" "+p(d.getHours())+":"+p(d.getMinutes());}
   function renderHist(){
     var a=lerHist(),q=soAlnum($("busca").value);
-    if(q)a=a.filter(function(c){return soAlnum(c.ordem).indexOf(q)>=0||soAlnum(c.placa).indexOf(q)>=0||soAlnum(c.cliente||"").indexOf(q)>=0||soAlnum(c.responsavel||"").indexOf(q)>=0||c.lotes.some(function(l){return soAlnum(l.lote).indexOf(q)>=0||soAlnum(l.ordem||"").indexOf(q)>=0})});
+    if(q)a=a.filter(function(c){return soAlnum(c.ordem).indexOf(q)>=0||soAlnum(c.placa).indexOf(q)>=0||soAlnum(c.cliente||"").indexOf(q)>=0||soAlnum(c.responsavel||"").indexOf(q)>=0||c.lotes.some(function(l){return soAlnum(l.lote).indexOf(q)>=0||soAlnum(l.ordem||"").indexOf(q)>=0||soAlnum(l.cliente||"").indexOf(q)>=0})});
     var ul=$("hist");ul.innerHTML="";
     $("histVazio").hidden=a.length>0;
     if(!a.length&&q){$("histVazio").hidden=false;$("histVazio").textContent="Nada encontrado para \""+$("busca").value+"\".";}
@@ -417,7 +421,7 @@
     a.forEach(function(c){
       var li=document.createElement("li");
       var seen=[],parts=[];
-      c.lotes.forEach(function(l){var o=l.ordem||c.ordem||"";if(seen.indexOf(o)<0){seen.push(o);parts.push("<b>Ordem "+o+"</b>");}parts.push("Lote "+l.lote+": "+l.count+(l.alvo?"/"+l.alvo:""));});
+      c.lotes.forEach(function(l){var o=l.ordem||c.ordem||"";if(seen.indexOf(o)<0){seen.push(o);parts.push("<b>Ordem "+o+(l.cliente?(" ("+l.cliente+")"):"")+"</b>");}parts.push("Lote "+l.lote+": "+l.count+(l.alvo?"/"+l.alvo:""));});
       var lts=parts.join("  •  ");
       li.innerHTML="<span class='ord'>Ordens "+(c.ordem||"—")+"</span> · <span class='pl'>"+c.placa+"</span> — <b>"+c.total+(c.alvoTotal?"/"+c.alvoTotal:"")+" bag(s)</b><br>"+
         (c.cliente?("<span class='meta'>Cliente: "+c.cliente+"</span><br>"):"")+
@@ -431,7 +435,7 @@
   $("btnExport").onclick=function(){
     var a=lerHist();if(!a.length){alert("Não há cargas pra exportar.");return}
     var linhas=["Cliente;Responsavel;Ordem;Placa;Data;Seq;Lote;Bags;QtdPrevista;TotalCarga"];
-    a.forEach(function(c){c.lotes.forEach(function(l,i){linhas.push([(c.cliente||""),(c.responsavel||""),(l.ordem||c.ordem||""),c.placa,fmtData(c.quando),(i+1)+"º",l.lote,l.count,l.alvo||"",c.total].join(";"))})});
+    a.forEach(function(c){c.lotes.forEach(function(l,i){linhas.push([(l.cliente||c.cliente||""),(c.responsavel||""),(l.ordem||c.ordem||""),c.placa,fmtData(c.quando),(i+1)+"º",l.lote,l.count,l.alvo||"",c.total].join(";"))})});
     var blob=new Blob(["﻿"+linhas.join("\n")],{type:"text/csv;charset=utf-8"});
     var url=URL.createObjectURL(blob),a2=document.createElement("a");
     a2.href=url;a2.download="cargas_batovi.csv";document.body.appendChild(a2);a2.click();
