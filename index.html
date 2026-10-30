@@ -359,8 +359,8 @@
     var semQtd=lotes.filter(function(l){return !l.alvo});
     if(semQtd.length){alert("Informe a quantidade de bags de cada lote: "+semQtd.map(function(l){return "Ordem "+l.ordem+" Lote "+l.lote}).join(", "));return}
     lotes.forEach(function(l){l.count=0});
-    ordem=ordensDistintas().join(" / ");
-    cliente=clientesDistintos().join(" / ");
+    ordem=ordensDistintas().join(" • ");
+    cliente=clientesDistintos().join(" • ");
     $("ordemShow").textContent=ordem||"—"; $("placaShow").textContent=placa;
     $("clienteShow").textContent=(cliente?("Cliente: "+cliente):"")+(responsavel?((cliente?"  ·  ":"")+"Resp: "+responsavel):"");
     $("setup").hidden=true;$("histCard").hidden=true;$("scan").hidden=false;
@@ -384,7 +384,7 @@
       return out.join(sep); }
     var listaHtml=linhasPorOrdem("<br>");
     var listaTxt=linhasPorOrdem("\n");
-    var ordStr=oinfo.map(function(x){return x.ordem}).join(" / ");
+    var ordStr=oinfo.map(function(x){return x.ordem}).join(" • ");
     var params={placa:placa,cliente:(cliente||"-"),responsavel:(responsavel||"-"),ordem:(ordStr||"-"),data:dt,lista:listaHtml,total:(tot+"/"+totA+" bags")};
     var assunto=("Carga "+placa+(cliente?(" - "+cliente):"")+(ordStr?(" - ordens "+ordStr):"")+" - "+dt).toUpperCase();
     var corpo=("CONFERÊNCIA DE CARREGAMENTO\n\nCliente: "+(cliente||"-")+"\nPlaca: "+placa+"\nOrdens: "+(ordStr||"-")+"\nData: "+dt+"\n\nLotes carregados:\n"+listaTxt+"\n\nTotal: "+tot+"/"+totA+" bags\n\nResponsável pelo carregamento: "+(responsavel||"-")+"\n\n— Assistente Batovi I.A").toUpperCase();
@@ -404,7 +404,7 @@
   function lerHist(){try{return JSON.parse(localStorage.getItem(HKEY)||"[]")}catch(e){return []}}
   function gravarHist(a){try{localStorage.setItem(HKEY,JSON.stringify(a))}catch(e){}}
   function salvarCarga(){var a=lerHist();
-    a.unshift({ordem:ordensDistintas().join(" / "),placa:placa,cliente:cliente,responsavel:responsavel,quando:new Date().toISOString(),
+    a.unshift({ordem:ordensDistintas().join(" • "),placa:placa,cliente:cliente,responsavel:responsavel,quando:new Date().toISOString(),
       lotes:lotes.map(function(l){return {lote:l.lote,alvo:l.alvo,count:l.count,ordem:l.ordem,cliente:l.cliente}}),
       total:lotes.reduce(function(s,l){return s+l.count},0),
       alvoTotal:lotes.reduce(function(s,l){return s+l.alvo},0)});
