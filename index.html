@@ -199,15 +199,13 @@
 
   function soAlnum(s){return (s||"").toUpperCase().replace(/[^A-Z0-9]/g,"")}
   function numToks(s){return (s||"").match(/\d+/g)||[]}
-  function achaLote(lido){
-    var L=soAlnum(lido);
-    for(var i=0;i<lotes.length;i++){
-      var E=soAlnum(lotes[i].lote);
-      if(E && L===E) return lotes[i];
-      if(/^\d+$/.test(E)){ var t=numToks(lido); for(var j=0;j<t.length;j++){ if(t[j]===E) return lotes[i]; } }
-    }
-    return null;
+  function matchLote(lido,l){
+    var L=soAlnum(lido), E=soAlnum(l.lote); if(!E) return false;
+    if(L===E) return true;
+    if(/^\d+$/.test(E)){ var t=numToks(lido); for(var j=0;j<t.length;j++){ if(t[j]===E) return true; } }
+    return false;
   }
+  function achaLote(lido){ for(var i=0;i<lotes.length;i++){ if(matchLote(lido,lotes[i])) return lotes[i]; } return null; }
 
   var ac=null;
   function beep(f,d,v,ty){try{if(!ac)ac=new(window.AudioContext||window.webkitAudioContext)();if(ac.state==="suspended")ac.resume();
@@ -290,36 +288,38 @@
     var lido=(raw||"").trim(); if(!lido||travado) return;
     var now=Date.now(); if(lido===ultima&&(now-ultimaT)<900){ultimaT=now;return} ultima=lido;ultimaT=now;
 
+    var ci=currentIdx();
+    // 1) carga ja completa
+    if(ci<0){
+      if(achaLote(lido)){ statusFlash("err","CARGA JÁ COMPLETA ✗",lido); somErro(); vibra([100,60,100]); addLog("err","bag a mais (carga completa) · "+lido);
+        travar("CARGA COMPLETA","Todos os lotes já estão completos.\nBag a mais: "+lido); }
+      else { statusFlash("err","LOTE ERRADO ✗",lido); somErro(); vibra([120,80,120,80,200]); addLog("err","LOTE ERRADO · "+lido);
+        travar("LOTE ERRADO","Esse bag não é de nenhum lote desta carga.\nLido: "+lido); }
+      return;
+    }
+    var cur=lotes[ci];
+    // 2) e o lote da vez (resolvido pela posicao atual -> cobre mesmo lote em 2 ordens) -> conta
+    if(matchLote(lido,cur)){
+      cur.count++; renderCont();
+      if(cur.count===cur.alvo){
+        var prox=currentIdx();
+        var msg = prox<0 ? ("LOTE "+cur.lote+" COMPLETO ✓ — CARGA FINALIZADA") : ("LOTE "+cur.lote+" COMPLETO ✓ — agora Ordem "+lotes[prox].ordem+" Lote "+lotes[prox].lote);
+        statusFlash("ok",msg,lido); somDone(); vibra(120); addLog("ok","Ordem "+cur.ordem+" Lote "+cur.lote+" COMPLETO "+cur.count+"/"+cur.alvo);
+      } else {
+        statusFlash("ok","BAG OK ✓  (Lote "+cur.lote+"  "+cur.count+"/"+cur.alvo+")",lido); somOK(); vibra(60);
+        addLog("ok","Ordem "+cur.ordem+" Lote "+cur.lote+"  "+cur.count+"/"+cur.alvo+"  ·  "+lido);
+      }
+      return;
+    }
+    // 3) nao e o da vez: existe noutra posicao -> fora de sequencia; senao -> lote errado
     var m=achaLote(lido);
-    // 1) nao esta em nenhum lote da carga
     if(!m){
       statusFlash("err","LOTE ERRADO ✗",lido); somErro(); vibra([120,80,120,80,200]); addLog("err","LOTE ERRADO · "+lido);
       travar("LOTE ERRADO","Esse bag não é de nenhum lote desta carga.\nLido: "+lido); return;
     }
-    var ci=currentIdx();
-    var seqM=lotes.indexOf(m)+1;
-    // 2) carga ja completa
-    if(ci<0){
-      statusFlash("err","CARGA JÁ COMPLETA ✗",lido); somErro(); vibra([100,60,100]); addLog("err","bag a mais (carga completa) · "+lido);
-      travar("CARGA COMPLETA","Todos os lotes já estão completos.\nBag a mais: Lote "+m.lote); return;
-    }
-    // 3) fora de sequencia (lote existe, mas nao e o da vez)
-    if(lotes[ci]!==m){
-      statusFlash("err","FORA DE SEQUÊNCIA ✗",lido); somErro(); vibra([120,80,120,80,200]);
-      addLog("err","fora de sequência: bipou Ordem "+m.ordem+" Lote "+m.lote+", era Ordem "+lotes[ci].ordem+" Lote "+lotes[ci].lote);
-      travar("FORA DE SEQUÊNCIA","Agora é Ordem "+lotes[ci].ordem+" — Lote "+lotes[ci].lote+" ("+lotes[ci].count+"/"+lotes[ci].alvo+").\nVocê bipou Ordem "+m.ordem+" — Lote "+m.lote+".");
-      return;
-    }
-    // 4) e o lote da vez -> conta
-    m.count++; renderCont();
-    if(m.count===m.alvo){
-      var prox=currentIdx();
-      var msg = prox<0 ? ("LOTE "+m.lote+" COMPLETO ✓ — CARGA FINALIZADA") : ("LOTE "+m.lote+" COMPLETO ✓ — agora Ordem "+lotes[prox].ordem+" Lote "+lotes[prox].lote);
-      statusFlash("ok",msg,lido); somDone(); vibra(120); addLog("ok","Lote "+m.lote+" COMPLETO "+m.count+"/"+m.alvo);
-    } else {
-      statusFlash("ok","BAG OK ✓  (Lote "+m.lote+"  "+m.count+"/"+m.alvo+")",lido); somOK(); vibra(60);
-      addLog("ok","Lote "+m.lote+"  "+m.count+"/"+m.alvo+"  ·  "+lido);
-    }
+    statusFlash("err","FORA DE SEQUÊNCIA ✗",lido); somErro(); vibra([120,80,120,80,200]);
+    addLog("err","fora de sequência: bipou Ordem "+m.ordem+" Lote "+m.lote+", era Ordem "+cur.ordem+" Lote "+cur.lote);
+    travar("FORA DE SEQUÊNCIA","Agora é Ordem "+cur.ordem+" — Lote "+cur.lote+" ("+cur.count+"/"+cur.alvo+").\nVocê bipou Ordem "+m.ordem+" — Lote "+m.lote+".");
   }
   function travar(titulo,detalhe){ travado=true; $("ovTitle").textContent=titulo||"ALERTA"; $("ovDetail").textContent=detalhe; $("overlay").hidden=false; }
   $("ovBtn").onclick=function(){$("overlay").hidden=true;travado=false;statusFlash(null,"Aponte no próximo bag","");focoManual()};
